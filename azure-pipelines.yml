@@ -1,0 +1,40 @@
+trigger:
+- main
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  WAREHOUSE_ID: "<YOUR_SQL_WAREHOUSE_ID>"
+
+steps:
+- checkout: self
+
+- script: |
+    pip install databricks-cli openai
+    databricks configure --token <<EOF
+    https://<YOUR_WORKSPACE_URL>
+    $(DATABRICKS_TOKEN)
+    EOF
+  displayName: "Setup Databricks"
+
+- script: python scripts/detect_ddl.py
+  displayName: "Detect DDL"
+
+- script: python scripts/classify_ddl_ai.py
+  displayName: "Classify DDL"
+
+- task: ManualValidation@0
+  condition: contains(variables['Build.SourceVersionMessage'], 'DROP')
+  inputs:
+    instructions: "DROP TABLE detected. Approve to continue."
+
+- script: python scripts/backup_schema.py
+  displayName: "Backup Schema"
+
+- script: python scripts/execute_ddl.py
+  displayName: "Execute DDL"
+
+- script: python scripts/ledger_update.py
+  displayName: "Update Ledger"
+
