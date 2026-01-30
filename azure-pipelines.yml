@@ -5,7 +5,7 @@ pool:
   vmImage: ubuntu-latest
 
 variables:
-  WAREHOUSE_ID: "<YOUR_SQL_WAREHOUSE_ID>"
+  WAREHOUSE_ID: ""
 
 steps:
 - checkout: self
