@@ -1,41 +1,66 @@
 trigger:
 - main
 
-pool:
-  vmImage: ubuntu-latest
+stages:
+# -------------------------
+# STAGE 1: DETECT & CLASSIFY
+# -------------------------
+- stage: DetectAndClassify
+  jobs:
+  - job: detect
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
 
-variables:
-  WAREHOUSE_ID: ""
+    - script: |
+        pip install databricks-cli
+        databricks configure --token <<EOF
+        https://<YOUR_WORKSPACE_URL>
+        $(DATABRICKS_TOKEN)
+        EOF
+      displayName: "Configure Databricks"
 
-steps:
-- checkout: self
+    - script: python scripts/detect_ddl.py
+      displayName: "Detect DDL"
 
-- script: |
-    pip install databricks-cli openai
-    databricks configure --token <<EOF
-    https://<YOUR_WORKSPACE_URL>
-    $(DATABRICKS_TOKEN)
-    EOF
-  displayName: "Setup Databricks"
+    - script: python scripts/classify_ddl.py
+      displayName: "Classify DDL"
 
-- script: python scripts/detect_ddl.py
-  displayName: "Detect DDL"
-
-- script: python scripts/classify_ddl.py
-  displayName: "Classify DDL (Rules)"
-
-
-- task: ManualValidation@0
+# -------------------------
+# STAGE 2: MANUAL APPROVAL
+# -------------------------
+- stage: Approval
+  dependsOn: DetectAndClassify
   condition: contains(variables['Build.SourceVersionMessage'], 'DROP')
-  inputs:
-    instructions: "DROP TABLE detected. Approve to continue."
+  jobs:
+  - job: approval
+    pool: server
+    steps:
+    - task: ManualValidation@0
+      inputs:
+        instructions: "DROP TABLE detected. Approve to continue."
+        timeoutInMinutes: 1440
 
-- script: python scripts/backup_schema.py
-  displayName: "Backup Schema"
+# -------------------------
+# STAGE 3: EXECUTION
+# -------------------------
+- stage: ExecuteDDL
+  dependsOn:
+    - DetectAndClassify
+    - Approval
+  condition: succeeded()
+  jobs:
+  - job: execute
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
 
-- script: python scripts/execute_ddl.py
-  displayName: "Execute DDL"
+    - script: python scripts/execute_ddl.py
+      displayName: "Execute DDL"
 
-- script: python scripts/ledger_update.py
-  displayName: "Update Ledger"
+    - script: python scripts/ledger_update.py
+      displayName: "Update Ledger"
+
 
