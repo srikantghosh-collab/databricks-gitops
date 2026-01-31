@@ -1,66 +1,110 @@
 trigger:
 - main
 
+variables:
+  PYTHON_VERSION: '3.10'
+
 stages:
+
 # -------------------------
 # STAGE 1: DETECT & CLASSIFY
 # -------------------------
 - stage: DetectAndClassify
+  displayName: "Detect and Classify DDL"
   jobs:
   - job: detect
+    displayName: "DDL Detection Job"
     pool:
       vmImage: ubuntu-latest
+
     steps:
     - checkout: self
 
-    - script: |
-        pip install databricks-cli
-        databricks configure --token <<EOF
-        https://<YOUR_WORKSPACE_URL>
-        $(DATABRICKS_TOKEN)
-        EOF
-      displayName: "Configure Databricks"
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
 
-    - script: python scripts/detect_ddl.py
+    - script: |
+        pip install --upgrade pip
+        pip install databricks-cli
+      displayName: "Install Databricks CLI"
+
+    - script: |
+        databricks sql execute \
+          --warehouse-id $(Warehouse_ID) \
+          --command "SHOW TABLES"
+      displayName: "Test Databricks Connection"
+      env:
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+
+    - script: |
+        python scripts/detect_ddl.py
       displayName: "Detect DDL"
 
-    - script: python scripts/classify_ddl.py
+    - script: |
+        python scripts/classify_ddl.py
       displayName: "Classify DDL"
 
 # -------------------------
 # STAGE 2: MANUAL APPROVAL
 # -------------------------
 - stage: Approval
+  displayName: "Manual Approval for DROP"
   dependsOn: DetectAndClassify
-  condition: contains(variables['Build.SourceVersionMessage'], 'DROP')
+  condition: |
+    and(
+      succeeded(),
+      contains(variables['Build.SourceVersionMessage'], 'DROP')
+    )
   jobs:
   - job: approval
+    displayName: "Approval Gate"
     pool: server
     steps:
     - task: ManualValidation@0
       inputs:
-        instructions: "DROP TABLE detected. Approve to continue."
+        instructions: "DROP TABLE detected. Please approve to continue."
         timeoutInMinutes: 1440
 
 # -------------------------
 # STAGE 3: EXECUTION
 # -------------------------
 - stage: ExecuteDDL
+  displayName: "Execute Approved DDL"
   dependsOn:
     - DetectAndClassify
     - Approval
-  condition: succeeded()
+  condition: |
+    or(
+      succeeded('Approval'),
+      not(contains(variables['Build.SourceVersionMessage'], 'DROP'))
+    )
   jobs:
   - job: execute
+    displayName: "DDL Execution Job"
     pool:
       vmImage: ubuntu-latest
+
     steps:
     - checkout: self
 
-    - script: python scripts/execute_ddl.py
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+
+    - script: |
+        pip install --upgrade pip
+        pip install databricks-cli
+      displayName: "Install Dependencies"
+
+    - script: |
+        python scripts/execute_ddl.py
       displayName: "Execute DDL"
+      env:
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
 
-    - script: python scripts/ledger_update.py
+    - script: |
+        python scripts/ledger_update.py
       displayName: "Update Ledger"
-
-
