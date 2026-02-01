@@ -25,8 +25,13 @@ stages:
         versionSpec: $(PYTHON_VERSION)
 
     - script: |
+       echo "Removing old Databricks CLI"
        sudo rm -f /usr/local/bin/databricks
+
+       echo "Installing Databricks CLI v2"
        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+
+       echo "Verifying CLI version"
        databricks version
       displayName: "Install Databricks CLI v2 (Clean)"
 
