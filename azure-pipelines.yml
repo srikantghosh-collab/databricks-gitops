@@ -25,18 +25,20 @@ stages:
         versionSpec: $(PYTHON_VERSION)
 
     - script: |
-        pip install --upgrade pip
-        pip install databricks-cli
-      displayName: "Install Databricks CLI"
+       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+      displayName: "Install Databricks CLI v2"
+
 
     - script: |
-        databricks sql execute \
-          --warehouse-id $(Warehouse_ID) \
-          --command "SHOW TABLES"
+       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+       databricks sql execute \
+        --warehouse-id $(Warehouse_ID) \
+        --command "SHOW TABLES"
       displayName: "Test Databricks Connection"
       env:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
+  
 
     - script: |
         python scripts/detect_ddl.py

@@ -1,9 +1,8 @@
-import json, subprocess
+import os
+import subprocess
 
-with open("ddl_output.json") as f:
-    ddl = json.load(f)["ddl"]
+ddl = open("ddl_output.json").read()
+warehouse = os.getenv("Warehouse_ID")
 
-cmd = f'databricks sql execute --warehouse-id $WAREHOUSE_ID --command "{ddl}"'
+cmd = f'databricks sql execute --warehouse-id {warehouse} --command "{ddl}"'
 subprocess.check_call(cmd, shell=True)
-
-print("DDL executed")
