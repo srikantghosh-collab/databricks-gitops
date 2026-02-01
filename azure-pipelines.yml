@@ -25,8 +25,11 @@ stages:
         versionSpec: $(PYTHON_VERSION)
 
     - script: |
+       sudo rm -f /usr/local/bin/databricks
        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
-      displayName: "Install Databricks CLI v2"
+       databricks version
+      displayName: "Install Databricks CLI v2 (Clean)"
+
 
 
     - script: |
