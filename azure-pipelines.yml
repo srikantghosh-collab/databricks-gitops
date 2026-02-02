@@ -74,11 +74,7 @@ stages:
   dependsOn:
     - DetectAndClassify
     - Approval
-  condition: |
-    or(
-      succeeded('Approval'),
-      not(contains(variables['Build.SourceVersionMessage'], 'DROP'))
-    )
+  
   jobs:
   - job: execute
     displayName: "DDL Execution Job"
