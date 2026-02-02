@@ -4,3 +4,4 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 ALTER TABLE orders ADD COLUMN discount INT;
+DROP TABLE orders;
