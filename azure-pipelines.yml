@@ -95,17 +95,15 @@ stages:
 
     - script: |
         pip install --upgrade pip
-        pip install databricks-cli
+
       displayName: "Install Dependencies"
 
     - script: |
-        python -m pip install --upgrade pip
-        python -m pip install databricks-sql-connector
-        python - <<EOF
-        from databricks import sql
-        print("Databricks SQL connector imported successfully")
-        EOF
-      displayName: "Install & Verify Databricks SQL Connector"
+         python -m pip install --upgrade pip
+         python -m pip install databricks-sql-connector
+         python -c "from databricks import sql; print('Databricks SQL OK')"
+      displayName: "Install Databricks SQL Connector"
+
  
 
     - script: |
