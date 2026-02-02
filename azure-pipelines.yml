@@ -85,22 +85,23 @@ stages:
     pool:
       vmImage: ubuntu-latest
 
+
     steps:
     - checkout: self
       fetchDepth: 0
     - task: UsePythonVersion@0
       inputs:
         versionSpec: $(PYTHON_VERSION)
+        
+    - script: |
+        pip install --upgrade pip
+        pip install databricks-cli
+      displayName: "Install Dependencies"
 
     - script: |
         pip install --upgrade pip
         pip install databricks-sql-connector
       displayName: "Install Databricks SQL Connector"
-
-    - script: |
-        pip install --upgrade pip
-        pip install databricks-cli
-      displayName: "Install Dependencies"
 
     - script: |
         python scripts/execute_ddl.py
