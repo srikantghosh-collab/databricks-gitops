@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS hive_metastore.default.orders (
+CREATE TABLE hive_metastore.default.orders (
   id INT,
   name STRING
 );
