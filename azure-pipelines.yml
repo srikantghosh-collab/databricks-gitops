@@ -35,19 +35,6 @@ stages:
        databricks version
       displayName: "Install Databricks CLI v2 (Clean)"
 
-
-
-    - script: |
-       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
-       databricks sql execute \
-        --warehouse-id $(Warehouse_ID) \
-        --command "SHOW TABLES"
-      displayName: "Test Databricks Connection"
-      env:
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-  
-
     - script: |
         python scripts/detect_ddl.py
       displayName: "Detect DDL"
