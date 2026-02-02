@@ -39,9 +39,6 @@ stages:
         python scripts/detect_ddl.py
       displayName: "Detect DDL"
 
-    - script: |
-        python scripts/execute_ddl.py
-      displayName: "Execute DDL"
 
 
 
@@ -92,10 +89,10 @@ stages:
       displayName: "Install Dependencies"
 
     - script: |
-         python -m pip install --upgrade pip
-         python -m pip install databricks-sql-connector
-         python -c "from databricks import sql; print('Databricks SQL OK')"
-      displayName: "Install Databricks SQL Connector"
+        python -m pip install --upgrade pip
+        python -m pip install databricks-sql-connector
+        python -c "from databricks import sql; print('Databricks SQL OK')"
+        displayName: "Install Databricks SQL Connector"
 
  
 
