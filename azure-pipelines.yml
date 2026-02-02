@@ -38,6 +38,11 @@ stages:
     - script: |
         python scripts/detect_ddl.py
       displayName: "Detect DDL"
+      
+    - script: |
+        python scripts/execute_ddl.py
+      displayName: "Execute DDL"
+
 
 
 # -------------------------
