@@ -1,26 +1,45 @@
-import os
-import json
 import subprocess
 import sys
+import json
 
-# Skip execution if no DDL was detected
-if not os.path.exists("ddl_output.json"):
-    print("No DDL detected. Skipping execution.")
+def git_output(cmd):
+    return subprocess.check_output(cmd, text=True).strip()
+
+print("Detecting DDL changes from latest commit...")
+
+# Get files changed in current commit
+changed_files = git_output(
+    ["git", "show", "--name-only", "--pretty=", "HEAD"]
+).splitlines()
+
+ddl_files = [f for f in changed_files if f.startswith("ddl/")]
+
+if not ddl_files:
+    print("No DDL changes detected.")
     sys.exit(0)
 
-with open("ddl_output.json") as f:
-    ddl = json.load(f)["ddl"]
+ddl_file = ddl_files[0]
 
-warehouse_id = os.getenv("Warehouse_ID")
+# Get diff of that file in current commit
+diff = git_output(
+    ["git", "show", "HEAD", "--", ddl_file]
+)
 
-if not warehouse_id:
-    print("Warehouse_ID not set")
-    sys.exit(1)
+ddl = None
+for line in diff.splitlines():
+    if line.startswith("+") and not line.startswith("+++"):
+        ddl = line.replace("+", "").strip()
+        break
 
-cmd = f'databricks sql execute --warehouse-id {warehouse_id} --command "{ddl}"'
-print("Executing:", cmd)
+if not ddl:
+    print("DDL file changed but no executable DDL found.")
+    sys.exit(0)
 
-subprocess.check_call(cmd, shell=True)
+with open("ddl_output.json", "w") as f:
+    json.dump(
+        {"file": ddl_file, "ddl": ddl},
+        f,
+        indent=2
+    )
 
-print("DDL executed successfully")
-
+print("Detected DDL:", ddl)
