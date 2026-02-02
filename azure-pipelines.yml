@@ -39,9 +39,6 @@ stages:
         python scripts/detect_ddl.py
       displayName: "Detect DDL"
 
-    - script: |
-        python scripts/classify_ddl.py
-      displayName: "Classify DDL"
 
 # -------------------------
 # STAGE 2: MANUAL APPROVAL
