@@ -71,9 +71,6 @@ stages:
 # -------------------------
 - stage: ExecuteDDL
   displayName: "Execute Approved DDL"
-  dependsOn:
-    - DetectAndClassify
-    - Approval
   
   jobs:
   - job: execute
