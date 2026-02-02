@@ -101,9 +101,12 @@ stages:
     - script: |
         python -m pip install --upgrade pip
         python -m pip install databricks-sql-connector
-        python -c "from databricks import sql; print('Databricks SQL connector OK')"
-      displayName: "Install Databricks SQL Connector"
-
+        python - <<EOF
+        from databricks import sql
+        print("Databricks SQL connector imported successfully")
+        EOF
+      displayName: "Install & Verify Databricks SQL Connector"
+ 
 
     - script: |
         python scripts/execute_ddl.py
