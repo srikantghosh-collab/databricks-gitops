@@ -25,14 +25,14 @@ stages:
         versionSpec: $(PYTHON_VERSION)
 
     - script: |
-       echo "Removing old Databricks CLI"
-       sudo rm -f /usr/local/bin/databricks
+        echo "Removing old Databricks CLI"
+        sudo rm -f /usr/local/bin/databricks
 
-       echo "Installing Databricks CLI v2"
-       curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
+        echo "Installing Databricks CLI v2"
+        curl -fsSL https://raw.githubusercontent.com/databricks/setup-cli/main/install.sh | bash
 
-       echo "Verifying CLI version"
-       databricks version
+        echo "Verifying CLI version"
+        databricks version
       displayName: "Install Databricks CLI v2 (Clean)"
 
     - script: |
@@ -48,11 +48,6 @@ stages:
 - stage: Approval
   displayName: "Manual Approval for DROP"
   dependsOn: DetectAndClassify
-  condition: |
-    and(
-      succeeded(),
-      contains(variables['Build.SourceVersionMessage'], 'DROP')
-    )
   jobs:
   - job: approval
     displayName: "Approval Gate"
@@ -68,7 +63,14 @@ stages:
 # -------------------------
 - stage: ExecuteDDL
   displayName: "Execute Approved DDL"
-  
+  dependsOn:
+    - DetectAndClassify
+    - Approval
+  condition: |
+    or(
+      succeeded('Approval'),
+      not(contains(variables['Build.SourceVersionMessage'], 'DROP'))
+    )
   jobs:
   - job: execute
     displayName: "DDL Execution Job"
