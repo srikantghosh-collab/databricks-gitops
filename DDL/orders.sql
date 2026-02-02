@@ -6,3 +6,4 @@ CREATE TABLE hive_metastore.default.orders (
 
 
 
+

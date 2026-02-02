@@ -38,7 +38,7 @@ stages:
     - script: |
         python scripts/detect_ddl.py
       displayName: "Detect DDL"
-      
+
     - script: |
         python scripts/execute_ddl.py
       displayName: "Execute DDL"
@@ -94,6 +94,11 @@ stages:
 
     - script: |
         pip install --upgrade pip
+        pip install databricks-sql-connector
+      displayName: "Install Databricks SQL Connector"
+
+    - script: |
+        pip install --upgrade pip
         pip install databricks-cli
       displayName: "Install Dependencies"
 
@@ -103,6 +108,7 @@ stages:
       env:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_Http_Path)
 
     - script: |
         python scripts/ledger_update.py
