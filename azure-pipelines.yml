@@ -26,19 +26,17 @@ stages:
 - stage: Approval
   displayName: "Manual Approval for DROP"
   dependsOn: Detect
-  condition: |
-    and(
-      succeeded(),
-      eq(variables['is_drop'], 'true')
-    )
+  condition: eq(dependencies.Detect.outputs['detect.detect_step.IS_DROP'], 'true')
   jobs:
   - job: approval
+    displayName: "Approval Gate"
     pool: server
     steps:
     - task: ManualValidation@0
       inputs:
-        instructions: "DROP DDL detected. Please approve."
+        instructions: "DROP TABLE detected. Please approve to continue."
         timeoutInMinutes: 1440
+
 
 # =========================
 # STAGE 3: EXECUTE
@@ -50,11 +48,8 @@ stages:
     - Approval
   condition: |
     or(
-      eq(variables['is_drop'], 'false'),
-      and(
-        eq(variables['is_drop'], 'true'),
-        succeeded('Approval')
-      )
+      eq(dependencies.Detect.outputs['detect.detect_step.IS_DROP'], 'false'),
+      succeeded('Approval')
     )
   jobs:
   - job: execute
@@ -74,13 +69,7 @@ stages:
 
     - script: |
         python scripts/execute_ddl.py
-      displayName: "Execute DDL"
-      
-    - script: python scripts/detect_ddl.py
-      name: detectddl
-      displayName: "Detect DDL"
-
       env:
-        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_HOST: $(Databricks_host)
         DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_Http_Path)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
