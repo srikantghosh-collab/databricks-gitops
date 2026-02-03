@@ -17,8 +17,8 @@ stages:
     steps:
     - checkout: self
     - script: |
-        echo "Detection stage running"
-      displayName: "Detect Stage"
+        python scripts/detect_ddl.py
+      name: detectddl
 
 # =========================
 # STAGE 2: MANUAL APPROVAL
@@ -42,14 +42,14 @@ stages:
 # STAGE 3: EXECUTE
 # =========================
 - stage: Execute
-  displayName: "Execute DDL"
+  displayName: Execute DDL
   dependsOn:
     - Detect
     - Approval
   condition: |
-    or(
-      eq(dependencies.Detect.outputs['detect.detect_step.IS_DROP'], 'false'),
-      succeeded('Approval')
+    and(
+      succeeded(),
+      eq(dependencies.Detect.outputs['detect.detectddl.HAS_DDL'], 'true')
     )
   jobs:
   - job: execute
@@ -60,12 +60,12 @@ stages:
 
     - task: UsePythonVersion@0
       inputs:
-        versionSpec: $(PYTHON_VERSION)
+        versionSpec: '3.10'
 
     - script: |
         python -m pip install --upgrade pip
         python -m pip install databricks-sql-connector
-      displayName: "Install Databricks SQL Connector"
+      displayName: Install Dependencies
 
     - script: |
         python scripts/execute_ddl.py
