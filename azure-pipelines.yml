@@ -12,7 +12,6 @@ stages:
   displayName: "Detect DDL Changes"
   jobs:
   - job: detect
-    name: detect
     pool:
       vmImage: ubuntu-latest
     steps:
