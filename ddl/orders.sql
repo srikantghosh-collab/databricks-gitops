@@ -1,4 +1,5 @@
-DROP TABLE orders;
+DROP TABLE IF EXISTS orders;
+
 
 
 
