@@ -1,11 +1,11 @@
 import subprocess
-import sys
 import json
+import sys
 
 def git_output(cmd):
-    return subprocess.check_output(cmd, text=True).strip()
+    return subprocess.check_output(cmd, text=True)
 
-print("Detecting DDL changes from latest commit...")
+print("Detecting DDL changes...")
 
 changed_files = git_output(
     ["git", "show", "--name-only", "--pretty=", "HEAD"]
@@ -14,61 +14,44 @@ changed_files = git_output(
 ddl_files = [f for f in changed_files if f.startswith("ddl/")]
 
 if not ddl_files:
-    print("No DDL changes detected.")
-    sys.exit(0)
-
-import subprocess
-import sys
-import json
-
-def git_output(cmd):
-    return subprocess.check_output(cmd, text=True).strip()
-
-print("Detecting DDL changes from latest commit...")
-
-changed_files = git_output(
-    ["git", "show", "--name-only", "--pretty=", "HEAD"]
-).splitlines()
-
-ddl_files = [f for f in changed_files if f.startswith("ddl/")]
-
-if not ddl_files:
-    print("No DDL changes detected.")
+    print("No DDL changes")
+    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
 ddl_file = ddl_files[0]
 
 diff = git_output(["git", "show", "HEAD", "--", ddl_file])
 
-ddl = None
+ddl_stmt = None
 for line in diff.splitlines():
     if line.startswith("+") and not line.startswith("+++"):
-        ddl = line.replace("+", "").strip()
+        ddl_stmt = line.replace("+", "").strip()
         break
 
-if not ddl:
-    print("DDL file changed but no executable DDL found.")
+if not ddl_stmt:
+    print("No executable DDL found")
+    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
-ddl_type = ddl.split()[0].upper()   # CREATE / ALTER / DROP
+is_drop = ddl_stmt.upper().startswith("DROP")
+
+# 🔥 THIS LINE IS THE KEY 🔥
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 
 with open("ddl_output.json", "w") as f:
     json.dump(
         {
             "file": ddl_file,
-            "ddl": ddl,
-            "type": ddl_type
+            "ddl": ddl_stmt,
+            "is_drop": is_drop
         },
         f,
         indent=2
     )
 
-# 🔥 THIS IS IMPORTANT
-print(f"##vso[task.setvariable variable=DDL_TYPE;isOutput=true]{ddl_type}")
+print("DDL:", ddl_stmt)
+print("IS_DROP:", is_drop)
 
-
-print("Detected DDL:", ddl)
-print("DDL TYPE:", ddl_type)
 
 
 

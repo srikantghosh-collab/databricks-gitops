@@ -29,8 +29,7 @@ stages:
   condition: |
     and(
       succeeded(),
-      eq(dependencies.Detect.outputs['detect.DDL_TYPE'], 'DROP')
-
+      eq(dependencies.Detect.outputs['detectOutput.IS_DROP'], 'true')
     )
   jobs:
   - job: approval
@@ -51,7 +50,7 @@ stages:
     - Approval
   condition: |
    or(
-    eq(dependencies.Detect.outputs['detect.DDL_TYPE'], 'DROP'),
+    eq(dependencies.Detect.outputs['detectOutput.IS_DROP'], 'false'),
     succeeded('Approval')
    )
   jobs:
@@ -73,6 +72,11 @@ stages:
     - script: |
         python scripts/execute_ddl.py
       displayName: "Execute DDL"
+      
+    - script: python scripts/detect_ddl.py
+      name: detectddl
+      displayName: "Detect DDL"
+
       env:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
