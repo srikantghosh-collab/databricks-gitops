@@ -17,6 +17,25 @@ if not ddl_files:
     print("No DDL changes detected.")
     sys.exit(0)
 
+import subprocess
+import sys
+import json
+
+def git_output(cmd):
+    return subprocess.check_output(cmd, text=True).strip()
+
+print("Detecting DDL changes from latest commit...")
+
+changed_files = git_output(
+    ["git", "show", "--name-only", "--pretty=", "HEAD"]
+).splitlines()
+
+ddl_files = [f for f in changed_files if f.startswith("ddl/")]
+
+if not ddl_files:
+    print("No DDL changes detected.")
+    sys.exit(0)
+
 ddl_file = ddl_files[0]
 
 diff = git_output(["git", "show", "HEAD", "--", ddl_file])
@@ -31,13 +50,7 @@ if not ddl:
     print("DDL file changed but no executable DDL found.")
     sys.exit(0)
 
-#  CLASSIFY DDL
-ddl_upper = ddl.upper()
-
-if ddl_upper.startswith("DROP"):
-    ddl_type = "IRREVERSIBLE"
-else:
-    ddl_type = "REVERSIBLE"
+ddl_type = ddl.split()[0].upper()   # CREATE / ALTER / DROP
 
 with open("ddl_output.json", "w") as f:
     json.dump(
@@ -50,8 +63,12 @@ with open("ddl_output.json", "w") as f:
         indent=2
     )
 
-print(f"Detected DDL: {ddl}")
-print(f"DDL Type: {ddl_type}")
+# 🔥 THIS IS IMPORTANT
+print(f"##vso[task.setvariable variable=DDL_TYPE]{ddl_type}")
+
+print("Detected DDL:", ddl)
+print("DDL TYPE:", ddl_type)
+
 
 
 
