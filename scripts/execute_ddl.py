@@ -1,12 +1,14 @@
 import os
 from databricks import sql
 
-base_dir = os.environ.get("BUILD_SOURCESDIRECTORY", os.getcwd())
-ddl_file = os.path.join(base_dir, "ddl", "orders.sql")
+DDL_FILE = "ddl/orders.sql"
 
-print("Using DDL file:", ddl_file)
+print(f"Using DDL file: {os.path.abspath(DDL_FILE)}")
 
-with open(ddl_file) as f:
+if not os.path.exists(DDL_FILE):
+    raise FileNotFoundError("DDL file not found")
+
+with open(DDL_FILE, "r") as f:
     ddl_sql = f.read()
 
 conn = sql.connect(
@@ -16,13 +18,21 @@ conn = sql.connect(
 )
 
 cursor = conn.cursor()
-cursor.execute(ddl_sql)
+
+# 🔥 VERY IMPORTANT
+cursor.execute("USE CATALOG hive_metastore")
+cursor.execute("USE SCHEMA default")
+
+print("Catalog & schema set")
+
+for stmt in ddl_sql.split(";"):
+    stmt = stmt.strip()
+    if stmt:
+        print(f"Executing: {stmt}")
+        cursor.execute(stmt)
+
 cursor.close()
 conn.close()
 
 print("DDL executed successfully")
-
-
-
-
 

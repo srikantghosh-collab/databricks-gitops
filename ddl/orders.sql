@@ -1,4 +1,8 @@
-DROP TABLE hive_metastore.default.orders;
+CREATE TABLE IF NOT EXISTS orders (
+  id INT,
+  name STRING
+);
+
 
 
 
