@@ -24,8 +24,10 @@ stages:
 # STAGE 2: MANUAL APPROVAL
 # =========================
 - stage: Approval
-  displayName: "Manual Approval for DDL"
+  displayName: "Manual Approval for Irreversible DDL"
   dependsOn: Detect
+  condition: eq(variables['DDL_IS_IRREVERSIBLE'], 'true')
+
   jobs:
   - job: approval
     displayName: "Approval Gate"
@@ -33,16 +35,23 @@ stages:
     steps:
     - task: ManualValidation@0
       inputs:
-        instructions: |
-          Please review the DDL change and approve to continue.
+        instructions: "DROP TABLE detected. Please approve to continue."
         timeoutInMinutes: 1440
+
 
 # =========================
 # STAGE 3: EXECUTE
 # =========================
 - stage: Execute
   displayName: "Execute DDL"
-  dependsOn: Approval
+  dependsOn: 
+    - Detect
+    - Approval
+  condition: |
+    or(
+      ne(variables['DDL_IS_IRREVERSIBLE'], 'true'),
+      succeeded('Approval')
+    )
   jobs:
   - job: execute
     pool:

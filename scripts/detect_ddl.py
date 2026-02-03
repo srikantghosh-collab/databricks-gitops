@@ -7,7 +7,6 @@ def git_output(cmd):
 
 print("Detecting DDL changes from latest commit...")
 
-# CI-safe: get files changed in current commit
 changed_files = git_output(
     ["git", "show", "--name-only", "--pretty=", "HEAD"]
 ).splitlines()
@@ -20,9 +19,7 @@ if not ddl_files:
 
 ddl_file = ddl_files[0]
 
-diff = git_output(
-    ["git", "show", "HEAD", "--", ddl_file]
-)
+diff = git_output(["git", "show", "HEAD", "--", ddl_file])
 
 ddl = None
 for line in diff.splitlines():
@@ -34,10 +31,28 @@ if not ddl:
     print("DDL file changed but no executable DDL found.")
     sys.exit(0)
 
-with open("ddl_output.json", "w") as f:
-    json.dump({"file": ddl_file, "ddl": ddl}, f, indent=2)
+#  CLASSIFY DDL
+ddl_upper = ddl.upper()
 
-print("Detected DDL:", ddl)
+if ddl_upper.startswith("DROP"):
+    ddl_type = "IRREVERSIBLE"
+else:
+    ddl_type = "REVERSIBLE"
+
+with open("ddl_output.json", "w") as f:
+    json.dump(
+        {
+            "file": ddl_file,
+            "ddl": ddl,
+            "type": ddl_type
+        },
+        f,
+        indent=2
+    )
+
+print(f"Detected DDL: {ddl}")
+print(f"DDL Type: {ddl_type}")
+
 
 
 
