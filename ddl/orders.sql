@@ -1,4 +1,4 @@
-ALTER TABLE orders ADD COLUMN price DOUBLE;
+DROP TABLE orders;
 
 
 
