@@ -12,31 +12,39 @@ stages:
   displayName: "Detect DDL Changes"
   jobs:
   - job: detect
-    displayName: "Detection Job"
     pool:
       vmImage: ubuntu-latest
     steps:
     - checkout: self
-      fetchDepth: 0
-
-    - task: UsePythonVersion@0
-      inputs:
-        versionSpec: $(PYTHON_VERSION)
-
     - script: |
         echo "Detection stage running"
-      displayName: "Sanity Check Detect Stage"
-
+      displayName: "Detect Stage"
 
 # =========================
-# STAGE 2: EXECUTE
+# STAGE 2: MANUAL APPROVAL
+# =========================
+- stage: Approval
+  displayName: "Manual Approval for DDL"
+  dependsOn: Detect
+  jobs:
+  - job: approval
+    displayName: "Approval Gate"
+    pool: server
+    steps:
+    - task: ManualValidation@0
+      inputs:
+        instructions: |
+          Please review the DDL change and approve to continue.
+        timeoutInMinutes: 1440
+
+# =========================
+# STAGE 3: EXECUTE
 # =========================
 - stage: Execute
   displayName: "Execute DDL"
-  dependsOn: Detect
+  dependsOn: Approval
   jobs:
   - job: execute
-    displayName: "Execution Job"
     pool:
       vmImage: ubuntu-latest
     steps:
@@ -49,7 +57,6 @@ stages:
     - script: |
         python -m pip install --upgrade pip
         python -m pip install databricks-sql-connector
-        python -c "from databricks import sql; print('Databricks SQL OK')"
       displayName: "Install Databricks SQL Connector"
 
     - script: |
@@ -59,4 +66,3 @@ stages:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_Http_Path)
-
