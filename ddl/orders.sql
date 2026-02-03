@@ -1,7 +1,5 @@
-CREATE TABLE IF NOT EXISTS orders (
-  id INT,
-  name STRING
-);
+ALTER TABLE orders ADD COLUMN price DOUBLE;
+
 
 
 
