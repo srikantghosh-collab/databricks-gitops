@@ -12,6 +12,7 @@ stages:
   displayName: "Detect DDL Changes"
   jobs:
   - job: detect
+    name: detect
     pool:
       vmImage: ubuntu-latest
     steps:
@@ -29,7 +30,8 @@ stages:
   condition: |
     and(
       succeeded(),
-      eq(variables['DDL_TYPE'], 'DROP')
+      eq(dependencies.Detect.outputs['detect.DDL_TYPE'], 'DROP')
+
     )
   jobs:
   - job: approval
@@ -50,7 +52,7 @@ stages:
     - Approval
   condition: |
    or(
-    ne(variables['DDL_TYPE'], 'DROP'),
+    eq(dependencies.Detect.outputs['detect.DDL_TYPE'], 'DROP'),
     succeeded('Approval')
    )
   jobs:

@@ -64,7 +64,8 @@ with open("ddl_output.json", "w") as f:
     )
 
 # 🔥 THIS IS IMPORTANT
-print(f"##vso[task.setvariable variable=DDL_TYPE]{ddl_type}")
+print(f"##vso[task.setvariable variable=DDL_TYPE;isOutput=true]{ddl_type}")
+
 
 print("Detected DDL:", ddl)
 print("DDL TYPE:", ddl_type)
