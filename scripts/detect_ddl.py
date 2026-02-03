@@ -3,7 +3,7 @@ import json
 import sys
 
 def git_output(cmd):
-    return subprocess.check_output(cmd, text=True)
+    return subprocess.check_output(cmd, text=True).strip()
 
 print("Detecting DDL changes...")
 
@@ -14,8 +14,7 @@ changed_files = git_output(
 ddl_files = [f for f in changed_files if f.startswith("ddl/")]
 
 if not ddl_files:
-    print("No DDL changes")
-    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
+    print("##vso[task.setvariable variable=ddl_found]false")
     sys.exit(0)
 
 ddl_file = ddl_files[0]
@@ -29,28 +28,25 @@ for line in diff.splitlines():
         break
 
 if not ddl_stmt:
-    print("No executable DDL found")
-    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
+    print("##vso[task.setvariable variable=ddl_found]false")
     sys.exit(0)
 
 is_drop = ddl_stmt.upper().startswith("DROP")
 
-# 🔥 THIS LINE IS THE KEY 🔥
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+# 🔥 SET PIPELINE VARIABLES
+print(f"##vso[task.setvariable variable=ddl_found]true")
+print(f"##vso[task.setvariable variable=is_drop]{str(is_drop).lower()}")
+
+print("DDL:", ddl_stmt)
+print("IS_DROP:", is_drop)
 
 with open("ddl_output.json", "w") as f:
     json.dump(
-        {
-            "file": ddl_file,
-            "ddl": ddl_stmt,
-            "is_drop": is_drop
-        },
+        {"file": ddl_file, "ddl": ddl_stmt, "is_drop": is_drop},
         f,
         indent=2
     )
 
-print("DDL:", ddl_stmt)
-print("IS_DROP:", is_drop)
 
 
 

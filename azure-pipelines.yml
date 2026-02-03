@@ -24,12 +24,12 @@ stages:
 # STAGE 2: MANUAL APPROVAL
 # =========================
 - stage: Approval
-  displayName: "Manual Approval for Irreversible DDL"
+  displayName: "Manual Approval for DROP"
   dependsOn: Detect
   condition: |
     and(
       succeeded(),
-      eq(dependencies.Detect.outputs['detectOutput.IS_DROP'], 'true')
+      eq(variables['is_drop'], 'true')
     )
   jobs:
   - job: approval
@@ -37,7 +37,7 @@ stages:
     steps:
     - task: ManualValidation@0
       inputs:
-        instructions: "DROP DDL detected. Please approve to continue."
+        instructions: "DROP DDL detected. Please approve."
         timeoutInMinutes: 1440
 
 # =========================
@@ -45,14 +45,17 @@ stages:
 # =========================
 - stage: Execute
   displayName: "Execute DDL"
-  dependsOn: 
+  dependsOn:
     - Detect
     - Approval
   condition: |
-   or(
-    eq(dependencies.Detect.outputs['detectOutput.IS_DROP'], 'false'),
-    succeeded('Approval')
-   )
+    or(
+      eq(variables['is_drop'], 'false'),
+      and(
+        eq(variables['is_drop'], 'true'),
+        succeeded('Approval')
+      )
+    )
   jobs:
   - job: execute
     pool:
