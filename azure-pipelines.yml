@@ -60,7 +60,7 @@ variables:
   condition: |
     and(
       succeeded(),
-      eq(dependencies.Detect.outputs['detect.detectddl.HAS_DDL'], 'true')
+      eq(dependencies.Detect.outputs['detect.detectddl.HAS_DDL'], 'false')
     )
   jobs:
   - job: execute
