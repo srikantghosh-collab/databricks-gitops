@@ -37,6 +37,7 @@ is_drop = ddl_stmt.upper().startswith("DROP")
 print(f"Detected DDL: {ddl_stmt}")
 print(f"IS_DROP: {is_drop}")
 
+print("##vso[task.setvariable variable=IS_DDL;isOutput=true]true")
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 
 
