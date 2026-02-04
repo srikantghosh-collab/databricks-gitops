@@ -7,7 +7,7 @@ variables:
 # =========================
 # STAGE 1: DETECT
 # =========================
-- stage: Detect
+  stage: Detect
   displayName: Detect DDL Changes
   jobs:
   - job: detect
