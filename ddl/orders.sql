@@ -1,4 +1,6 @@
-DROP TABLE hive_metastore.default.orders;
+ALTER TABLE orders ADD COLUMN price INT;
+
+
 
 
 
