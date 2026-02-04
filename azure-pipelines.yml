@@ -41,6 +41,7 @@ stages:
     )
   jobs:
   - job: approval
+    displayName: Approval Job
     pool: server
     steps:
     - task: ManualValidation@0
@@ -56,12 +57,18 @@ stages:
 - stage: Execute
   displayName: Execute DDL
   dependsOn:
-    - Detect
-    - Approval
+  - Detect
+  - Approval
   condition: |
-    and(
-      succeeded(),
-      eq(dependencies.Detect.outputs['detect.detectddl.HAS_DDL'], 'false')
+    or(
+      and(
+        eq(dependencies.Detect.outputs['detect.detectddl.IS_DDL'], 'true'),
+        eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'false')
+      ),
+      and(
+        eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'true'),
+        succeeded('Approval')
+      )
     )
   jobs:
   - job: execute
@@ -72,7 +79,7 @@ stages:
 
     - task: UsePythonVersion@0
       inputs:
-        versionSpec: '3.10'
+        versionSpec: 3.10
 
     - script: |
         python -m pip install --upgrade pip

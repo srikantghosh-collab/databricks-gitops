@@ -1,4 +1,5 @@
-CREATE TABLE hive_metastore.default.orders (id INT);
+CREATE TABLE orders (id INT);
+
 
 
 

@@ -1,38 +1,43 @@
-import os
-from databricks import sql
+import subprocess
+import sys
 
-DDL_FILE = "ddl/orders.sql"
+def git_output(cmd):
+    return subprocess.check_output(cmd, text=True).strip()
 
-print(f"Using DDL file: {os.path.abspath(DDL_FILE)}")
+print("Detecting DDL changes...")
 
-if not os.path.exists(DDL_FILE):
-    raise FileNotFoundError("DDL file not found")
+changed_files = git_output(
+    ["git", "show", "--name-only", "--pretty=", "HEAD"]
+).splitlines()
 
-with open(DDL_FILE, "r") as f:
-    ddl_sql = f.read()
+ddl_files = [f for f in changed_files if f.startswith("ddl/")]
 
-conn = sql.connect(
-    server_hostname=os.environ["DATABRICKS_HOST"].replace("https://", ""),
-    http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    access_token=os.environ["DATABRICKS_TOKEN"]
-)
+if not ddl_files:
+    print("##vso[task.setvariable variable=IS_DDL;isOutput=true]false")
+    print("No DDL changes detected")
+    sys.exit(0)
 
-cursor = conn.cursor()
+ddl_file = ddl_files[0]
 
-# 🔥 VERY IMPORTANT
-cursor.execute("USE CATALOG hive_metastore")
-cursor.execute("USE SCHEMA default")
+diff = git_output(["git", "show", "HEAD", "--", ddl_file])
 
-print("Catalog & schema set")
+ddl_stmt = None
+for line in diff.splitlines():
+    if line.startswith("+") and not line.startswith("+++"):
+        ddl_stmt = line.replace("+", "").strip()
+        break
 
-for stmt in ddl_sql.split(";"):
-    stmt = stmt.strip()
-    if stmt:
-        print(f"Executing: {stmt}")
-        cursor.execute(stmt)
+if not ddl_stmt:
+    print("##vso[task.setvariable variable=IS_DDL;isOutput=true]false")
+    print("No executable DDL found")
+    sys.exit(0)
 
-cursor.close()
-conn.close()
+is_drop = ddl_stmt.upper().startswith("DROP")
 
-print("DDL executed successfully")
+print(f"Detected DDL: {ddl_stmt}")
+print(f"IS_DROP: {is_drop}")
+
+print("##vso[task.setvariable variable=IS_DDL;isOutput=true]true")
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+
 
