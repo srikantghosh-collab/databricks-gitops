@@ -1,43 +1,40 @@
-import subprocess
-import sys
+from databricks import sql
+import os
 
-def git_output(cmd):
-    return subprocess.check_output(cmd, text=True).strip()
+# Path to DDL file
+DDL_FILE = "ddl/orders.sql"
 
-print("Detecting DDL changes...")
+print("Starting DDL execution...")
 
-changed_files = git_output(
-    ["git", "show", "--name-only", "--pretty=", "HEAD"]
-).splitlines()
+# 1️⃣ Connect to Databricks SQL Warehouse
+conn = sql.connect(
+    server_hostname=os.environ["DATABRICKS_HOST"],
+    http_path=os.environ["DATABRICKS_HTTP_PATH"],
+    access_token=os.environ["DATABRICKS_TOKEN"]
+)
 
-ddl_files = [f for f in changed_files if f.startswith("ddl/")]
+cursor = conn.cursor()
 
-if not ddl_files:
-    print("##vso[task.setvariable variable=IS_DDL;isOutput=true]false")
-    print("No DDL changes detected")
-    sys.exit(0)
+# 2️⃣ IMPORTANT: Set correct catalog & schema
+cursor.execute("USE CATALOG hive_metastore")
+cursor.execute("USE SCHEMA default")
+print("Catalog & schema set")
 
-ddl_file = ddl_files[0]
+# 3️⃣ Read DDL from file
+with open(DDL_FILE, "r") as f:
+    ddl_sql = f.read().strip()
 
-diff = git_output(["git", "show", "HEAD", "--", ddl_file])
+print("Executing DDL:")
+print(ddl_sql)
 
-ddl_stmt = None
-for line in diff.splitlines():
-    if line.startswith("+") and not line.startswith("+++"):
-        ddl_stmt = line.replace("+", "").strip()
-        break
+# 4️⃣ Execute DDL
+cursor.execute(ddl_sql)
+print("DDL executed successfully")
 
-if not ddl_stmt:
-    print("##vso[task.setvariable variable=IS_DDL;isOutput=true]false")
-    print("No executable DDL found")
-    sys.exit(0)
+# 5️⃣ Cleanup
+cursor.close()
+conn.close()
+print("Connection closed")
 
-is_drop = ddl_stmt.upper().startswith("DROP")
-
-print(f"Detected DDL: {ddl_stmt}")
-print(f"IS_DROP: {is_drop}")
-
-print("##vso[task.setvariable variable=IS_DDL;isOutput=true]true")
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 
 
