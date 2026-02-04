@@ -1,4 +1,5 @@
-CREATE TABLE orders (id INT);
+DROP TABLE orders;
+
 
 
 
