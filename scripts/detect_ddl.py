@@ -40,7 +40,7 @@ print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lowe
 
 print("DDL:", ddl_stmt)
 print("IS_DROP:", is_drop)
-
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{is_drop}")
 
 
 
