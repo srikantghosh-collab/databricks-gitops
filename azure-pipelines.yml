@@ -7,35 +7,46 @@ variables:
 # =========================
 # STAGE 1: DETECT
 # =========================
-stages:
 - stage: Detect
-  displayName: "Detect DDL Changes"
+  displayName: Detect DDL Changes
   jobs:
   - job: detect
+    displayName: Detection Job
     pool:
       vmImage: ubuntu-latest
     steps:
     - checkout: self
+      fetchDepth: 0
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+
     - script: |
         python scripts/detect_ddl.py
-      name: detectddl
+      name: detectddl   
+
 
 # =========================
 # STAGE 2: MANUAL APPROVAL
 # =========================
 - stage: Approval
-  displayName: "Manual Approval for DROP"
+  displayName: Manual Approval for DROP
   dependsOn: Detect
-  condition: eq(dependencies.Detect.outputs['detect.detect_step.IS_DROP'], 'true')
+  condition: |
+    and(
+      succeeded(),
+      eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'true')
+    )
   jobs:
   - job: approval
-    displayName: "Approval Gate"
     pool: server
     steps:
     - task: ManualValidation@0
       inputs:
-        instructions: "DROP TABLE detected. Please approve to continue."
+        instructions: "DROP DDL detected. Please approve to continue."
         timeoutInMinutes: 1440
+
 
 
 # =========================
