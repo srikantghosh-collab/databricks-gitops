@@ -36,11 +36,10 @@ if not ddl_stmt:
 is_drop = ddl_stmt.upper().startswith("DROP")
 
 # 🔥 THIS IS THE KEY LINE
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
-
 print("DDL:", ddl_stmt)
 print("IS_DROP:", is_drop)
 
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 
 
 
