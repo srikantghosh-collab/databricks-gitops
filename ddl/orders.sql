@@ -1,7 +1,4 @@
-CREATE TABLE hive_metastore.default.orders (
-  id INT,
-  name STRING
-);
+DROP TABLE hive_metastore.default.orders;
 
 
 
