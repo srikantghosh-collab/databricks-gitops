@@ -1,10 +1,9 @@
 import subprocess
 import json
 import sys
-import os
 
 def git_output(cmd):
-    return subprocess.check_output(cmd, text=True)
+    return subprocess.check_output(cmd, text=True).strip()
 
 print("Detecting DDL changes...")
 
@@ -20,6 +19,7 @@ if not ddl_files:
     sys.exit(0)
 
 ddl_file = ddl_files[0]
+
 diff = git_output(["git", "show", "HEAD", "--", ddl_file])
 
 ddl_stmt = None
@@ -35,11 +35,12 @@ if not ddl_stmt:
 
 is_drop = ddl_stmt.upper().startswith("DROP")
 
-# 🔥 THIS IS THE KEY LINE
+# 🔥 THIS IS THE MOST IMPORTANT PART 🔥
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+
 print("DDL:", ddl_stmt)
 print("IS_DROP:", is_drop)
 
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 
 
 
