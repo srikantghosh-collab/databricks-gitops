@@ -4,15 +4,16 @@ trigger:
 variables:
   PYTHON_VERSION: '3.10'
 
-# =========================
-# STAGE 1: DETECT
-# =========================
 stages:
+
+# ======================
+# STAGE 1: DETECT
+# ======================
 - stage: Detect
-  displayName: Detect DDL Changes
+  displayName: "Detect DDL Changes"
   jobs:
   - job: detect
-    displayName: Detection Job
+    displayName: "Detection Job"
     pool:
       vmImage: ubuntu-latest
     steps:
@@ -21,19 +22,22 @@ stages:
 
     - task: UsePythonVersion@0
       inputs:
-        versionSpec: '3.10'
+        versionSpec: $(PYTHON_VERSION)
 
+    # IMPORTANT: step name is required to expose output variables
     - script: |
         python scripts/detect_ddl.py
-      name: detectddl   
+      name: detectddl
+      displayName: "Detect DDL"
 
 
-# =========================
-# STAGE 2: MANUAL APPROVAL
-# =========================
+# ======================
+# STAGE 2: MANUAL APPROVAL (ONLY FOR DROP)
+# ======================
 - stage: Approval
-  displayName: Manual Approval for DROP
+  displayName: "Manual Approval for DROP"
   dependsOn: Detect
+  # Runs ONLY when IS_DROP == true
   condition: |
     and(
       succeeded(),
@@ -41,37 +45,37 @@ stages:
     )
   jobs:
   - job: approval
-    displayName: Approval Job
+    displayName: "Approval Gate"
     pool: server
     steps:
     - task: ManualValidation@0
       inputs:
-        instructions: "DROP DDL detected. Please approve to continue."
+        instructions: "DROP TABLE detected. Please approve to continue."
         timeoutInMinutes: 1440
 
 
-
-# =========================
+# ======================
 # STAGE 3: EXECUTE
-# =========================
+# ======================
 - stage: Execute
-  displayName: Execute DDL
+  displayName: "Execute DDL"
   dependsOn:
-  - Detect
-  - Approval
+    - Detect
+    - Approval
+  # KEY LOGIC:
+  # - CREATE / ALTER (IS_DROP=false) -> run immediately
+  # - DROP (IS_DROP=true) -> run ONLY after approval
   condition: |
-    or(
-      and(
-        eq(dependencies.Detect.outputs['detect.detectddl.IS_DDL'], 'true'),
-        eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'false')
-      ),
-      and(
-        eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'true'),
+    and(
+      succeeded('Detect'),
+      or(
+        eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'false'),
         succeeded('Approval')
       )
     )
   jobs:
   - job: execute
+    displayName: "Execute Job"
     pool:
       vmImage: ubuntu-latest
     steps:
@@ -79,16 +83,17 @@ stages:
 
     - task: UsePythonVersion@0
       inputs:
-        versionSpec: 3.10
+        versionSpec: $(PYTHON_VERSION)
 
     - script: |
         python -m pip install --upgrade pip
         python -m pip install databricks-sql-connector
-      displayName: Install Dependencies
+      displayName: "Install Databricks SQL Connector"
 
     - script: |
         python scripts/execute_ddl.py
+      displayName: "Execute DDL"
       env:
-        DATABRICKS_HOST: $(Databricks_host)
+        DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
