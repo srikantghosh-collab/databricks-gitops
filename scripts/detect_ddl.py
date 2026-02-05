@@ -18,7 +18,10 @@ changed_files = git_output(
     ["git", "show", "--name-only", "--pretty=", "HEAD"]
 ).splitlines()
 
-ddl_files = [f for f in changed_files if f.startswith("ddl/")]
+ddl_files = [
+    f for f in changed_files
+    if f.lower().endswith(".sql")
+]
 
 # ✅ Case 1: No DDL changes
 if not ddl_files:
