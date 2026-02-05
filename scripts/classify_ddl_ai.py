@@ -1,7 +1,8 @@
 import json
 import os
 import sys
-from openai import OpenAI
+from openai import AzureOpenAI
+
 
 print("🔵 AI Classification Stage Starting...")
 
