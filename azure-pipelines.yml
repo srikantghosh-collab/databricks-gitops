@@ -61,7 +61,7 @@ stages:
 
 
 # ======================
-# STAGE 2: MANUAL APPROVAL (ONLY FOR DROP)
+# STAGE 3: MANUAL APPROVAL (ONLY FOR DROP)
 # ======================
 - stage: Approval
   displayName: "Manual Approval for DROP"
@@ -70,7 +70,7 @@ stages:
   condition: |
     and(
       succeeded(),
-      condition: eq(dependencies.ai.outputs['ai.IS_DROP'], 'true')
+      eq(dependencies.ai.outputs['ai.IS_DROP'], 'true')
 
     )
   jobs:
@@ -85,7 +85,7 @@ stages:
 
 
 # ======================
-# STAGE 3: EXECUTE
+# STAGE 4: EXECUTE
 # ======================
 - stage: Execute
   displayName: "Execute DDL"
