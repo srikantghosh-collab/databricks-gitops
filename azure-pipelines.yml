@@ -67,7 +67,7 @@ stages:
 
     - script: |
         python scripts/classify_ddl_ai.py
-      name: classify
+      name: SetOutput
       displayName: "Run AI Classification"
       env:
         env:
@@ -82,7 +82,7 @@ stages:
 # ======================
 - stage: Approval
   displayName: "Manual Approval for DROP"
-  dependsOn: Detect
+  dependsOn: AI
   # Runs ONLY when IS_DROP == true
   condition: |
     and(
@@ -107,14 +107,14 @@ stages:
 - stage: Execute
   displayName: "Execute DDL"
   dependsOn:
-    - Detect
+    - AI
     - Approval
   # KEY LOGIC:
   # - CREATE / ALTER (IS_DROP=false) -> run immediately
   # - DROP (IS_DROP=true) -> run ONLY after approval
   condition: |
     and(
-      succeeded('Detect'),
+      succeeded('AI'),
       or(
         eq(dependencies.Detect.outputs['detect.classify.IS_DROP'], 'false'),
         succeeded('Approval')
