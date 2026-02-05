@@ -1,4 +1,4 @@
-DROP TABLE hive_metastore.test_table;
+DROP TABLE hive_metastore.srikant;
   
 
 
