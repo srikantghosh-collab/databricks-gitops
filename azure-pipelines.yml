@@ -32,7 +32,7 @@ stages:
 
     - task: PublishPipelineArtifact@1
       inputs:
-       targetPath: 'ddl_output.json'
+       targetPath: '$(System.DefaultWorkingDirectory)/ddl_output.json'
        artifact: 'ddlartifact'
        publishLocation: 'pipeline'
       displayName: "Publish DDL Artifact"
@@ -64,7 +64,7 @@ stages:
     - script: |
         python -m pip install "openai>=1.30.0"
       displayName: "Install AzureOpenAI"
-  
+
     - script: |
         python scripts/classify_ddl_ai.py
       name: ai

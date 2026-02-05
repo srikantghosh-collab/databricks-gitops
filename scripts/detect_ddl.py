@@ -38,13 +38,16 @@ is_drop = ddl_stmt.upper().startswith("DROP")
 with open("ddl_output.json", "w") as f:
     json.dump(
         {
-            "file": ddl_file,
-            "ddl": ddl_stmt,
-            "is_drop": is_drop
+            "file": None,
+            "ddl": None,
+            "is_drop": False
         },
-        f,
-        indent=2
+        f
     )
+
+print("No DDL changes — empty artifact created")
+sys.exit(0)
+
 
 # 🔥 THIS IS THE MOST IMPORTANT PART 🔥
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
