@@ -30,6 +30,13 @@ stages:
       name: detectddl
       displayName: "Detect DDL"
 
+    - task: PublishPipelineArtifact@1
+      inputs:
+       targetPath: 'ddl_output.json'
+       artifact: 'ddlartifact'
+       publishLocation: 'pipeline'
+      displayName: "Publish DDL Artifact"
+
 # ======================
 # STAGE 2: AI CLASSIFICATION
 # ======================
@@ -43,6 +50,12 @@ stages:
       vmImage: ubuntu-latest
     steps:
     - checkout: self
+    
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'ddlartifact'
+        path: .
+      displayName: "Download DDL Artifact"
 
     - task: UsePythonVersion@0
       inputs:

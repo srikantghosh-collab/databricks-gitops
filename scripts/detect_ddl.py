@@ -35,6 +35,17 @@ if not ddl_stmt:
 
 is_drop = ddl_stmt.upper().startswith("DROP")
 
+with open("ddl_output.json", "w") as f:
+    json.dump(
+        {
+            "file": ddl_file,
+            "ddl": ddl_stmt,
+            "is_drop": is_drop
+        },
+        f,
+        indent=2
+    )
+
 # 🔥 THIS IS THE MOST IMPORTANT PART 🔥
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 
