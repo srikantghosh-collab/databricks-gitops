@@ -1,4 +1,4 @@
-DROP TABLE hive_metastore.default.test_tables;
+DROP TABLE hive_metastore.default.orders;
   
 
 
