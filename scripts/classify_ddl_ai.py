@@ -14,7 +14,14 @@ if not os.path.exists("ddl_output.json"):
 with open("ddl_output.json", "r") as f:
     data = json.load(f)
 
-ddl = data.get("ddl", "").strip()
+ddl = data.get("ddl")
+
+if not ddl:
+    print("No DDL found — skipping AI classification")
+    sys.exit(0)
+
+ddl = ddl.strip()
+
 
 if not ddl:
     print("No DDL found")
@@ -44,7 +51,7 @@ or
 
 try:
     response = client.chat.completions.create(
-        model="gpt-5-mini",
+        model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
