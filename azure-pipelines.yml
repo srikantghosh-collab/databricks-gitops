@@ -30,6 +30,35 @@ stages:
       name: detectddl
       displayName: "Detect DDL"
 
+# ======================
+# STAGE 2: AI CLASSIFICATION
+# ======================
+- stage: AI
+  displayName: "AI DDL Classification"
+  dependsOn: Detect
+  jobs:
+  - job: ai
+    displayName: "AI Job"
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+
+    - script: |
+        python -m pip install openai
+      displayName: "Install OpenAI"
+
+    - script: |
+        python scripts/classify_ddl_ai.py
+      name: ai
+      displayName: "Run AI Classification"
+      env:
+        OPENAI_API_KEY: $(OPENAI_API_KEY)
+
 
 # ======================
 # STAGE 2: MANUAL APPROVAL (ONLY FOR DROP)
@@ -41,7 +70,8 @@ stages:
   condition: |
     and(
       succeeded(),
-      eq(dependencies.Detect.outputs['detect.detectddl.IS_DROP'], 'true')
+      condition: eq(dependencies.ai.outputs['ai.IS_DROP'], 'true')
+
     )
   jobs:
   - job: approval

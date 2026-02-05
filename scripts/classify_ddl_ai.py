@@ -1,39 +1,68 @@
-import os, json
-from openai import AzureOpenAI
+import json
+import os
+import sys
+from openai import OpenAI
 
-with open("ddl_output.json") as f:
-    ddl = json.load(f)["ddl"]
+print("🔵 AI Classification Stage Starting...")
 
-ddl_upper = ddl.upper()
+# Step 1: Load detected DDL
+if not os.path.exists("ddl_output.json"):
+    print("No ddl_output.json found — skipping AI classification")
+    sys.exit(0)
 
-# HARD RULES
-if "DROP TABLE" in ddl_upper:
-    result = {"type": "irreversible", "risk": "Data loss", "source": "rule"}
-else:
-    client = AzureOpenAI(
-        api_key=os.getenv("AZURE_OPENAI_KEY"),
-        azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-        api_version="2024-02-15-preview"
-    )
+with open("ddl_output.json", "r") as f:
+    data = json.load(f)
 
-    prompt = f"""
-Classify this DDL as reversible or irreversible and explain risk.
-Respond only in JSON.
+ddl = data.get("ddl", "").strip()
 
-DDL:
+if not ddl:
+    print("No DDL found")
+    sys.exit(0)
+
+print("DDL to classify:", ddl)
+
+# Step 2: OpenAI client
+client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+
+prompt = f"""
+You are a SQL safety analyzer.
+
+Classify this DDL statement:
+
 {ddl}
+
+Return ONLY JSON:
+
+{{ "classification": "reversible" }}
+or
+{{ "classification": "irreversible" }}
 """
 
-    res = client.chat.completions.create(
-        model=os.getenv("AZURE_OPENAI_DEPLOYMENT"),
+try:
+    response = client.chat.completions.create(
+        model="gpt-5-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
 
-    result = json.loads(res.choices[0].message.content)
-    result["source"] = "ai"
+    result = json.loads(response.choices[0].message.content)
+    classification = result["classification"]
 
-with open("classification.json", "w") as f:
-    json.dump(result, f, indent=2)
+except Exception as e:
+    print("AI failed — using fallback rule")
+    print("Error:", e)
 
-print(result)
+    classification = (
+        "irreversible"
+        if ddl.upper().startswith("DROP")
+        else "reversible"
+    )
+
+print("AI classification:", classification)
+
+is_drop = classification == "irreversible"
+
+# Pipeline variable
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+
+print("🔵 AI Classification Complete")
