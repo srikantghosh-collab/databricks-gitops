@@ -50,7 +50,7 @@ stages:
       vmImage: ubuntu-latest
     steps:
     - checkout: self
-    
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: 'ddlartifact'
@@ -70,7 +70,11 @@ stages:
       name: ai
       displayName: "Run AI Classification"
       env:
-        OPENAI_API_KEY: $(OPENAI_API_KEY)
+        env:
+        AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+        AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+        AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+
 
 
 # ======================

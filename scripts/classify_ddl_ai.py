@@ -21,8 +21,11 @@ if not ddl:
 
 print("DDL to classify:", ddl)
 
-# Step 2: OpenAI client
-client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+client = AzureOpenAI(
+    api_key=os.environ["AZURE_OPENAI_KEY"],
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_version="2024-02-15-preview"
+)
 
 prompt = f"""
 You are a SQL safety analyzer.
