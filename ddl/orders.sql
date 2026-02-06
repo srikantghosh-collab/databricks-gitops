@@ -1,4 +1,5 @@
-CREATE TABLE hive_metastore.Aditya_tables (
+CREATE TABLE tushar_tables
+ (
   id INT,
   name STRING,
   price INT
