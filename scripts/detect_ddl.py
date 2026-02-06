@@ -47,10 +47,15 @@ ddl_file = ddl_files[0]
 diff = git_output(["git", "show", "HEAD", "--", ddl_file])
 
 ddl_stmt = None
+
 for line in diff.splitlines():
     if line.startswith("+") and not line.startswith("+++"):
-        ddl_stmt = line.replace("+", "").strip()
-        break
+        stmt = line.replace("+", "").strip()
+
+        if stmt.upper().startswith(("DROP", "CREATE", "ALTER")):
+            ddl_stmt = stmt
+            break
+
 
 # ✅ Case 2: No executable DDL
 if not ddl_stmt:
