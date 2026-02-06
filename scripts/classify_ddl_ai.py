@@ -69,7 +69,7 @@ except Exception as e:
         else "reversible"
     )
 
-classification = result["classification"].strip().lower()
+classification = classification.strip().lower()
 print("AI classification:", classification)
 
 is_drop = classification == "irreversible"

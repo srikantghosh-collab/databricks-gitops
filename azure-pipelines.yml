@@ -87,7 +87,7 @@ stages:
   condition: |
     and(
     succeeded(),
-    eq(dependencies.AI.outputs['AIjob.SetOutput.IS_DROP'], 'true')
+    eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'true')
     )
 
   jobs:
@@ -116,7 +116,7 @@ stages:
     and(
       succeeded('AI'),
       or(
-        eq(dependencies.AI.outputs['AI.SetOutput.IS_DROP'], 'false'),
+        eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'false'),
         succeeded('Approval')
       )
     )

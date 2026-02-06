@@ -1,4 +1,4 @@
-DROP TABLE orders;
+DROP TABLE test_tables;
 
 
 
