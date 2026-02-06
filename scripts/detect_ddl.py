@@ -14,9 +14,17 @@ output_path = os.path.join(
     "ddl_output.json"
 )
 
-changed_files = git_output(
-    ["git", "show", "--name-only", "--pretty=", "HEAD"]
-).splitlines()
+try:
+    changed_files = git_output(
+        ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
+    ).splitlines()
+except subprocess.CalledProcessError:
+    print("Fallback: using git show HEAD")
+    changed_files = git_output(
+        ["git", "show", "--name-only", "--pretty=", "HEAD"]
+    ).splitlines()
+
+
 
 ddl_files = [
     f for f in changed_files
@@ -44,7 +52,15 @@ if not ddl_files:
 
 ddl_file = ddl_files[0]
 
-diff = git_output(["git", "show", "HEAD", "--", ddl_file])
+try:
+    diff = git_output(
+        ["git", "diff", "HEAD~1", "HEAD", "--", ddl_file]
+    )
+except subprocess.CalledProcessError:
+    diff = git_output(
+        ["git", "show", "HEAD", "--", ddl_file]
+    )
+
 
 ddl_stmt = None
 
