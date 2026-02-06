@@ -87,7 +87,7 @@ stages:
   condition: |
     and(
     succeeded(),
-    eq(dependencies.AI.outputs['ai.classify.IS_DROP'], 'true')
+    eq(dependencies.AI.outputs['AIjob.SetOutput.IS_DROP'], 'true')
     )
 
   jobs:

@@ -76,6 +76,8 @@ is_drop = classification == "irreversible"
 print("FINAL IS_DROP VALUE:", is_drop)
 
 # Pipeline variable
+sys.stdout.flush()
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+sys.stdout.flush()
 
 print("🔵 AI Classification Complete")
