@@ -1,0 +1,16 @@
+tables:
+  - name: customers
+    schema: default
+    columns:
+      - name: id
+        type: INT
+      - name: name
+        type: STRING
+
+  - name: reddy
+    schema: default
+    columns:
+      - name: order_id
+        type: INT
+      - name: amount
+        type: DOUBLE

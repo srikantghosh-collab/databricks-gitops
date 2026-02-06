@@ -144,3 +144,31 @@ stages:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
+# ======================
+# STAGE 5: RECONCILE
+# ======================
+- stage: Reconcile
+  displayName: "Schema Reconciliation"
+  dependsOn: Execute
+  jobs:
+  - job: reconcile
+    displayName: "Reconcile Job"
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+
+    - script: |
+        pip install databricks-sql-connector pyyaml
+        python scripts/reconcile_schema.py
+      displayName: "Run Reconciliation"
+      env:
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
