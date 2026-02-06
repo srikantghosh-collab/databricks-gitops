@@ -69,9 +69,11 @@ except Exception as e:
         else "reversible"
     )
 
+classification = result["classification"].strip().lower()
 print("AI classification:", classification)
 
 is_drop = classification == "irreversible"
+print("FINAL IS_DROP VALUE:", is_drop)
 
 # Pipeline variable
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")

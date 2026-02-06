@@ -1,5 +1,4 @@
-ALTER TABLE tushar_tables
-ADD COLUMN order_date DATE;
+DROP TABLE test_tables;
 
 
 
