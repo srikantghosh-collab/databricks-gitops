@@ -1,4 +1,4 @@
-DROP TABLE srikant;
+DROP TABLE orders;
 
 
 
