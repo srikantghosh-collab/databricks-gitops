@@ -116,7 +116,7 @@ stages:
     and(
       succeeded('AI'),
       or(
-        eq(dependencies.Detect.outputs['detect.classify.IS_DROP'], 'false'),
+        eq(dependencies.AI.outputs['AI.SetOutput.IS_DROP'], 'false'),
         succeeded('Approval')
       )
     )
