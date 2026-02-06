@@ -1,4 +1,8 @@
-DROP TABLE IF EXISTS karan_table_test;
+CREATE TABLE karan_table_test (
+  id INT,
+  name STRING
+);
+
 
 
 
