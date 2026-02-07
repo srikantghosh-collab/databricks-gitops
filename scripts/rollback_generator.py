@@ -4,6 +4,11 @@ import re
 
 print("🔵 Generating rollback script...")
 
+rollback_path = os.path.join(
+    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
+    "rollback.sql"
+)
+
 if not os.path.exists("ddl_output.json"):
     print("No ddl_output.json found — skipping rollback generation")
     exit(0)
@@ -48,11 +53,12 @@ elif ddl.startswith("ALTER TABLE"):
 # -----------------------------
 # Save rollback file
 # -----------------------------
-if rollback_sql:
-    with open("rollback.sql", "w") as f:
-        f.write(rollback_sql)
+if not rollback_sql:
+    rollback_sql = "-- No rollback action required"
 
-    print("Rollback script generated:")
-    print(rollback_sql)
-else:
-    print("No rollback rule matched")
+with open(rollback_path, "w") as f: 
+    f.write(rollback_sql)
+
+print("Rollback script generated:")
+print(rollback_sql)
+print("Rollback file saved at:", rollback_path)
