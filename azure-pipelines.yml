@@ -75,10 +75,43 @@ stages:
         AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
         AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
+# ==================================
+# STAGE 3: Generate Rollback Script
+# ==================================    
+
+- stage: RollbackGen
+  displayName: "Generate Rollback Script"
+  dependsOn: AI
+  jobs:
+  - job: rollback
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'ddlartifact'
+        path: .
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+
+    - script: |
+        python scripts/rollback_generator.py
+      displayName: "Generate Rollback"
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: rollback.sql
+        artifact: rollbackartifact
+      displayName: "Publish Rollback Artifact"
+
 
 
 # ======================
-# STAGE 3: MANUAL APPROVAL (ONLY FOR DROP)
+# STAGE 4: MANUAL APPROVAL (ONLY FOR DROP)
 # ======================
 - stage: Approval
   displayName: "Manual Approval for DROP"
@@ -102,12 +135,13 @@ stages:
 
 
 # ======================
-# STAGE 4: EXECUTE
+# STAGE 5: EXECUTE
 # ======================
 - stage: Execute
   displayName: "Execute DDL"
   dependsOn:
     - AI
+    - RollbackGen
     - Approval
   # KEY LOGIC:
   # - CREATE / ALTER (IS_DROP=false) -> run immediately
@@ -146,7 +180,7 @@ stages:
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
 # ======================
-# STAGE 5: RECONCILE
+# STAGE 6: RECONCILE
 # ======================
 - stage: Reconcile
   displayName: "Schema Reconciliation"
