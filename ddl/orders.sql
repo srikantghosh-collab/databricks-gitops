@@ -1,7 +1,5 @@
-CREATE TABLE demo_reversibles (
-  id INT,
-  name STRING
-);
+DROP TABLE demo_reversibles;
+
 
 
 
