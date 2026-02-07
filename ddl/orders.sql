@@ -1,4 +1,4 @@
-CREATE TABLE demo_reversible (
+CREATE TABLE demo_reversibles (
   id INT,
   name STRING
 );
