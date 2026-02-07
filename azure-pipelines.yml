@@ -185,6 +185,7 @@ stages:
 - stage: Reconcile
   displayName: "Schema Reconciliation"
   dependsOn: Execute
+  condition: succeeded('Execute')
   jobs:
   - job: reconcile
     displayName: "Reconcile Job"
