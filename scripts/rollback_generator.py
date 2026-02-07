@@ -4,61 +4,38 @@ import re
 
 print("🔵 Generating rollback script...")
 
-rollback_path = os.path.join(
-    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
-    "rollback.sql"
-)
+rollback_sql = "-- No rollback action required"
 
-if not os.path.exists("ddl_output.json"):
-    print("No ddl_output.json found — skipping rollback generation")
-    exit(0)
+if os.path.exists("ddl_output.json"):
+    with open("ddl_output.json", "r") as f:
+        data = json.load(f)
 
-with open("ddl_output.json", "r") as f:
-    data = json.load(f)
+    ddl = data.get("ddl")
 
-ddl = data.get("ddl")
+    if ddl:
+        ddl = ddl.strip().upper()
 
-if not ddl:
-    print("No DDL found — skipping rollback generation")
-    exit(0)
+        # CREATE → DROP
+        if ddl.startswith("CREATE TABLE"):
+            match = re.search(r"CREATE TABLE\s+([^\s(]+)", ddl)
+            if match:
+                table = match.group(1)
+                rollback_sql = f"DROP TABLE IF EXISTS {table};"
 
-ddl = ddl.strip().upper()
+        # DROP → RESTORE
+        elif ddl.startswith("DROP TABLE"):
+            match = re.search(r"DROP TABLE\s+(IF EXISTS\s+)?([^\s;]+)", ddl)
+            if match:
+                table = match.group(2)
+                rollback_sql = f"-- Restore required from backup for table {table}"
 
-rollback_sql = None
+        # ALTER
+        elif ddl.startswith("ALTER TABLE"):
+            rollback_sql = "-- Manual rollback required for ALTER"
 
-# -----------------------------
-# Rule 1: CREATE → DROP
-# -----------------------------
-if ddl.startswith("CREATE TABLE"):
-    match = re.search(r"CREATE TABLE\s+([^\s(]+)", ddl)
-    if match:
-        table = match.group(1)
-        rollback_sql = f"DROP TABLE IF EXISTS {table};"
-
-# -----------------------------
-# Rule 2: DROP → RESTORE
-# -----------------------------
-elif ddl.startswith("DROP TABLE"):
-    match = re.search(r"DROP TABLE\s+(IF EXISTS\s+)?([^\s;]+)", ddl)
-    if match:
-        table = match.group(2)
-        rollback_sql = f"-- Restore required from backup for table {table}"
-
-# -----------------------------
-# Rule 3: ALTER (basic)
-# -----------------------------
-elif ddl.startswith("ALTER TABLE"):
-    rollback_sql = "-- Manual rollback required for ALTER"
-
-# -----------------------------
-# Save rollback file
-# -----------------------------
-if not rollback_sql:
-    rollback_sql = "-- No rollback action required"
-
-with open(rollback_path, "w") as f: 
+# ✅ ALWAYS CREATE FILE
+with open("rollback.sql", "w") as f:
     f.write(rollback_sql)
 
 print("Rollback script generated:")
 print(rollback_sql)
-print("Rollback file saved at:", rollback_path)
