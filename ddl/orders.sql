@@ -1,4 +1,8 @@
-DROP TABLE IF EXISTS karan_table_test;
+CREATE TABLE demo_reversible (
+  id INT,
+  name STRING
+);
+
 
 
 
