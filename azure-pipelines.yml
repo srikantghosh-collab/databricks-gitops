@@ -109,10 +109,10 @@ stages:
       displayName: "Publish Rollback Artifact"
 
     - task: PublishPipelineArtifact@1
+      condition: exists('rollback_metadata.json')
       inputs:
-        targetPath: rollback_metadata.json
-        artifact: rollbackmeta
-      displayName: "Publish Rollback Metadata"
+        targetPath: 'rollback_metadata.json'
+        artifact: 'rollbackmeta'
 
 
 

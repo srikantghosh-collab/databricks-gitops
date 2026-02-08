@@ -1,4 +1,4 @@
-DROP TABLE demo_reversibles;
+DROP TABLE demo_reversible;
 
 
 
