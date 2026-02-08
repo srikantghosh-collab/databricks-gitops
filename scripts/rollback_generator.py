@@ -22,12 +22,30 @@ if os.path.exists("ddl_output.json"):
                 table = match.group(1)
                 rollback_sql = f"DROP TABLE IF EXISTS {table};"
 
-        # DROP → RESTORE
         elif ddl.startswith("DROP TABLE"):
-            match = re.search(r"DROP TABLE\s+(IF EXISTS\s+)?([^\s;]+)", ddl)
-            if match:
-                table = match.group(2)
-                rollback_sql = f"-- Restore required from backup for table {table}"
+            # ✅ Phase-2: metadata-driven restore
+            if os.path.exists("rollback_metadata.json"):
+
+                with open("rollback_metadata.json", "r") as mf:
+                    meta = json.load(mf)
+
+                original = meta["original_table"]
+                backup = meta["backup_table"]
+                catalog = meta["catalog"]
+                schema = meta["schema"]
+
+                rollback_sql = f"""
+USE CATALOG {catalog};
+USE SCHEMA {schema};
+
+DROP TABLE IF EXISTS {original};
+
+CREATE TABLE {original}
+AS SELECT * FROM {backup};
+"""
+
+            else:
+                rollback_sql = "-- Metadata not found: manual restore required"
 
         # ALTER
         elif ddl.startswith("ALTER TABLE"):

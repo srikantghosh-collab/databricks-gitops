@@ -1,6 +1,7 @@
 from databricks import sql
 import os
 import datetime
+import json
 
 CATALOG = "hive_metastore"
 SCHEMA = "default"
@@ -17,7 +18,6 @@ def backup_table(table_name):
 
     cursor = conn.cursor()
 
-    # Ensure correct context
     cursor.execute(f"USE CATALOG {CATALOG}")
     cursor.execute(f"USE SCHEMA {SCHEMA}")
 
@@ -33,6 +33,21 @@ def backup_table(table_name):
 
     print(f"Backup table created: {backup_table_name}")
 
+    # ✅ Metadata save
+    metadata = {
+        "catalog": CATALOG,
+        "schema": SCHEMA,
+        "original_table": table_name,
+        "backup_table": backup_table_name,
+        "timestamp": timestamp
+    }
+
+    with open("rollback_metadata.json", "w") as f:
+        json.dump(metadata, f, indent=2)
+
+    print("Rollback metadata saved:")
+    print(metadata)
+
     cursor.close()
     conn.close()
 
@@ -46,3 +61,4 @@ if __name__ == "__main__":
         raise Exception("DDL_TABLE_NAME environment variable not set")
 
     backup_table(table_to_backup)
+    
