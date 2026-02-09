@@ -1,4 +1,4 @@
-DROP TABLE test_table;
+DROP TABLE tushar_tables;
 
 
 
