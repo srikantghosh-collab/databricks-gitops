@@ -178,11 +178,19 @@ stages:
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
+    - script: |
+       if [ -f rollback_metadata.json ]; then
+        echo "##vso[task.setvariable variable=HAS_METADATA]true"
+       else
+        echo "##vso[task.setvariable variable=HAS_METADATA]false"
+       fi
+      displayName: "Check rollback metadata"
+
     - task: PublishPipelineArtifact@1
-      condition: exists('rollback_metadata.json')
+      condition: eq(variables.HAS_METADATA, 'true')
       inputs:
-        targetPath: 'rollback_metadata.json'
-        artifact: 'rollbackmeta'
+       targetPath: 'rollback_metadata.json'
+       artifact: 'rollbackmeta'
       displayName: "Publish Rollback Metadata"
 
 # ======================
