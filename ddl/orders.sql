@@ -1,4 +1,4 @@
-DROP TABLE tushar_tables;
+DROP TABLE customers;
 
 
 
