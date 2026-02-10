@@ -1,4 +1,8 @@
-DROP TABLE demo_orders;
+CREATE TABLE demos_orders (
+  id INT,
+  name STRING
+);
+
 
 
 
