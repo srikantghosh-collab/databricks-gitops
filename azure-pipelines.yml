@@ -30,6 +30,11 @@ stages:
       name: detectddl
       displayName: "Detect DDL"
 
+    - script: |
+        python scripts/detect_revert.py
+      name: detectrevert
+      displayName: "Detect Git Revert"
+
     - task: PublishPipelineArtifact@1
       inputs:
        targetPath: '$(System.DefaultWorkingDirectory)/ddl_output.json'
@@ -216,6 +221,43 @@ stages:
         pip install databricks-sql-connector pyyaml
         python scripts/reconcile_schema.py
       displayName: "Run Reconciliation"
+      env:
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
+# ======================
+# STAGE 7: AUTO ROLLBACK (PHASE-2)
+# ======================
+- stage: AutoRollback
+  displayName: "Auto Rollback from Backup"
+  dependsOn: Detect
+  condition: eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
+
+  jobs:
+  - job: rollback
+    displayName: "Rollback Job"
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: rollbackmeta
+        path: .
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.10'
+
+    - script: |
+        python -m pip install databricks-sql-connector
+      displayName: "Install Databricks Connector"
+
+    - script: |
+        python scripts/restore_from_backup.py
+      displayName: "Restore from Backup"
       env:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)

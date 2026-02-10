@@ -1,4 +1,4 @@
-CREATE TABLE sigmoid_table (
+CREATE TABLE sigmoid_tables(
     order_id INT,
     customer_id INT,
     order_date DATE,
