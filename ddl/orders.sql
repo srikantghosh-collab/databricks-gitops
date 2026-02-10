@@ -1,6 +1,8 @@
-CREATE TABLE demos_orders (
-  id INT,
-  name STRING
+CREATE TABLE Avinash_table (
+    order_id INT,
+    customer_id INT,
+    order_date DATE,
+    total_amount DECIMAL(10, 2)
 );
 
 
