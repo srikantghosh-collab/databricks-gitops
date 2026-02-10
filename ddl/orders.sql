@@ -1,4 +1,4 @@
-CREATE TABLE prabel_table (
+CREATE TABLE shubham_table (
     order_id INT,
     customer_id INT,
     order_date DATE,
