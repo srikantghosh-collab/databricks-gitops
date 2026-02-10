@@ -1,4 +1,4 @@
-CREATE TABLE demo_test;
+DROP TABLE demo_test;
 
 
 
