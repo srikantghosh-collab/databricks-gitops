@@ -231,8 +231,12 @@ stages:
 # ======================
 - stage: AutoRollback
   displayName: "Auto Rollback from Backup"
-  dependsOn: Execute
-  condition: succeeded('Execute')
+  dependsOn: Detect
+  condition: and(
+   succeeded(),
+   eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
+   )
+
 
   jobs:
   - job: rollback
@@ -248,7 +252,7 @@ stages:
       inputs:
         artifact: rollbackmeta
         path: .
-      displayName: "Download rollback metadata (optional)"
+      displayName: "Download rollback metadata"
 
     - task: UsePythonVersion@0
       inputs:
