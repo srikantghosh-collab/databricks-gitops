@@ -1,4 +1,5 @@
-DROP TABLE sigmoid_tables;
+CREATE TABLE demo_test;
+
 
 
 
