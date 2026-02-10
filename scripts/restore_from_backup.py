@@ -25,6 +25,11 @@ conn = sql.connect(
 )
 
 cursor = conn.cursor()
-cursor.execute(restore_sql)
+cursor.execute(f"DROP TABLE IF EXISTS {original}")
+cursor.execute(f"""
+CREATE TABLE {original}
+AS SELECT * FROM {backup}
+""")
+
 
 print("Restore complete ✅")
