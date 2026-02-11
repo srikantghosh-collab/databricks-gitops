@@ -1,4 +1,5 @@
-CREATE TABLE verify_final_test (id INT);
+CREATE TABLE final_test_table (id INT);
+
 
 
 
