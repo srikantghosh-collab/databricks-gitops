@@ -73,7 +73,6 @@ for line in diff.splitlines():
 
     if line.startswith(("+", "-")):
         stmt = line[1:].strip()
-
         stmt_upper = stmt.upper()
 
     if "CREATE TABLE" in stmt_upper or \
