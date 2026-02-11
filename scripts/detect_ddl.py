@@ -64,25 +64,25 @@ except subprocess.CalledProcessError:
 
 ddls = []
 
+ddl_candidates = []
+
 for line in diff.splitlines():
 
     if line.startswith(("+++", "---")):
         continue
 
     if line.startswith(("+", "-")):
-
         stmt = line[1:].strip()
 
-        if stmt.upper().startswith(("DROP", "CREATE", "ALTER")):
+        stmt_upper = stmt.upper()
 
-            ddl_type = stmt.split()[0].upper()
+    if "CREATE TABLE" in stmt_upper or \
+       "DROP TABLE" in stmt_upper or \
+       "ALTER TABLE" in stmt_upper:
+       ddl_candidates.append(stmt)
 
-            ddls.append({
-                "stmt": stmt,
-                "type": ddl_type
-            })
-
-
+# Prefer latest change (last line)
+ddl_stmt = ddl_candidates[-1] if ddl_candidates else None
 
 
 # ✅ Case 2: No executable DDL
