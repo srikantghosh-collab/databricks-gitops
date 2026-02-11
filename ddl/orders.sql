@@ -1,4 +1,4 @@
-DROP TABLE orders_sigmoid;
+DROP TABLE customers;
 
 
 
