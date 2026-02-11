@@ -65,12 +65,20 @@ except subprocess.CalledProcessError:
 ddl_stmt = None
 
 for line in diff.splitlines():
-    if line.startswith("+") and not line.startswith("+++"):
-        stmt = line.replace("+", "").strip()
+
+    # Ignore git headers
+    if line.startswith(("+++", "---")):
+        continue
+
+    # Handle both + and -
+    if line.startswith(("+", "-")):
+
+        stmt = line[1:].strip()
 
         if stmt.upper().startswith(("DROP", "CREATE", "ALTER")):
             ddl_stmt = stmt
             break
+
 
 
 # ✅ Case 2: No executable DDL
