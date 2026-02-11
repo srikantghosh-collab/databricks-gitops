@@ -1,4 +1,4 @@
-CREATE TABLE final_test_table (id INT);
+CREATE TABLE final_test_table2(id INT);
 
 
 
