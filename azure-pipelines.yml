@@ -151,13 +151,15 @@ stages:
   # - CREATE / ALTER (IS_DROP=false) -> run immediately
   # - DROP (IS_DROP=true) -> run ONLY after approval
   condition: |
-    and(
-      succeeded('AI'),
-      or(
-        eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'false'),
-        succeeded('Approval')
-      )
+   and(
+    succeeded('AI'),
+    eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'false'),
+    or(
+      eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'false'),
+      succeeded('Approval')
     )
+   )
+
   jobs:
   - job: execute
     displayName: "Execute Job"
