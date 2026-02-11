@@ -1,4 +1,6 @@
-DROP TABLE shubham_table;
+CREATE TABLE test_auto (
+  id INT
+);
 
 
 
