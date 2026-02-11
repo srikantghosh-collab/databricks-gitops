@@ -62,61 +62,54 @@ except subprocess.CalledProcessError:
     )
 
 
-ddl_stmt = None
+ddls = []
 
 for line in diff.splitlines():
 
-    # Ignore git headers
     if line.startswith(("+++", "---")):
         continue
 
-    # Handle both + and -
     if line.startswith(("+", "-")):
 
         stmt = line[1:].strip()
 
         if stmt.upper().startswith(("DROP", "CREATE", "ALTER")):
-            ddl_stmt = stmt
-            break
+
+            ddl_type = stmt.split()[0].upper()
+
+            ddls.append({
+                "stmt": stmt,
+                "type": ddl_type
+            })
+
 
 
 
 # ✅ Case 2: No executable DDL
-if not ddl_stmt:
+if not ddls:
     print("No executable DDL found")
 
     with open(output_path, "w") as f:
-        json.dump(
-            {
-                "file": None,
-                "ddl": None,
-                "is_drop": False
-            },
-            f,
-            indent=2
-        )
+        json.dump({"file": None, "ddls": []}, f, indent=2)
 
-    print("Empty artifact created")
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
 # ✅ Case 3: Valid DDL found
-is_drop = ddl_stmt.upper().startswith("DROP")
+is_drop = any(d["type"] == "DROP" for d in ddls)
 
 with open(output_path, "w") as f:
-    json.dump(
-        {
-            "file": ddl_file,
-            "ddl": ddl_stmt,
-            "is_drop": is_drop
-        },
-        f,
-        indent=2
-    )
+    json.dump({
+        "file": ddl_file,
+        "ddls": ddls
+    }, f, indent=2)
 
-print("DDL artifact created")
-print("DDL:", ddl_stmt)
+print("Detected DDLs:")
+for d in ddls:
+    print("-", d["stmt"])
+
 print("IS_DROP:", is_drop)
+
 
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 

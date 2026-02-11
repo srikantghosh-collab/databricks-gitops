@@ -21,38 +21,47 @@ cursor.execute("USE CATALOG hive_metastore")
 cursor.execute("USE SCHEMA default")
 print("Catalog & schema set")
 
-# 3️⃣ Read DDL from file
-with open(DDL_FILE, "r") as f:
-    ddl_sql = f.read().strip()
+# 3️⃣ Load DDL artifact
+import json
 
-# 🔥 ADD THIS BLOCK (EXACT PLACE)
-ddl_upper = ddl_sql.upper()
+with open("ddl_output.json") as f:
+    data = json.load(f)
 
-if ddl_upper.startswith("DROP"):
-    print("DROP detected. Taking backup before execution...")
+ddls = data.get("ddls", [])
 
-    # extract table name (simple logic)
-    table_name = ddl_sql.split()[-1].replace(";", "")
+if not ddls:
+    print("No DDL to execute")
+    cursor.close()
+    conn.close()
+    exit(0)
 
-    subprocess.check_call(
-        ["python", "scripts/backup_before_drop.py"],
-        env={
-            **os.environ,
-            "DDL_TABLE_NAME": table_name
-        }
-    )
+# 4️⃣ Execute each DDL
+for item in ddls:
 
-# 4️⃣ Execute DDL
-print("Executing DDL:")
-print(ddl_sql)
+    ddl_sql = item["stmt"]
+    ddl_type = item["type"]
 
-cursor.execute(ddl_sql)
-print("DDL executed successfully")
+    print("\nProcessing:", ddl_sql)
 
-# 5️⃣ Cleanup
-cursor.close()
-conn.close()
-print("Connection closed")
+    if ddl_type == "DROP":
+        print("DROP detected. Taking backup...")
+
+        table_name = ddl_sql.split()[-1].replace(";", "")
+
+        subprocess.check_call(
+            ["python", "scripts/backup_before_drop.py"],
+            env={
+                **os.environ,
+                "DDL_TABLE_NAME": table_name
+            }
+        )
+
+    print("Executing:")
+    print(ddl_sql)
+
+    cursor.execute(ddl_sql)
+    print("Executed successfully")
+
 
 
 
