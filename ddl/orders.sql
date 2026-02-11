@@ -1,4 +1,6 @@
-DROP TABLE test_auto;
+CREATE TABLE test_auto (
+  id INT
+);
 
 
 
