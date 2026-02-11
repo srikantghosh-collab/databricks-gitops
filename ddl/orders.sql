@@ -1,4 +1,4 @@
-CREATE TABLE verify_test2 (id INT);
+CREATE TABLE verify_test3 (id INT);
 
 
 
