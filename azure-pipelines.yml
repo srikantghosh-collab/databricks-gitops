@@ -243,13 +243,17 @@ stages:
     displayName: "Rollback Job"
     pool:
       vmImage: ubuntu-latest
-
+ 
     steps:
     - checkout: self
 
     - task: DownloadPipelineArtifact@2
       continueOnError: true
       inputs:
+        buildType: 'specific'
+        project: '$(System.TeamProject)'
+        definition: '$(System.DefinitionId)'
+        buildVersionToDownload: 'latest'   
         artifact: rollbackmeta
         path: .
       displayName: "Download rollback metadata"
