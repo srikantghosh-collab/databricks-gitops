@@ -147,9 +147,6 @@ stages:
     - AI
     - RollbackGen
     - Approval
-  # KEY LOGIC:
-  # - CREATE / ALTER (IS_DROP=false) -> run immediately
-  # - DROP (IS_DROP=true) -> run ONLY after approval
   condition: |
    and(
     succeeded('AI'),
@@ -165,8 +162,15 @@ stages:
     displayName: "Execute Job"
     pool:
       vmImage: ubuntu-latest
+
     steps:
     - checkout: self
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: ddlartifact
+        path: .
+      displayName: "Download DDL artifact"
 
     - task: UsePythonVersion@0
       inputs:
@@ -199,6 +203,7 @@ stages:
        targetPath: 'rollback_metadata.json'
        artifact: 'rollbackmeta'
       displayName: "Publish Rollback Metadata"
+
 
 # ======================
 # STAGE 6: RECONCILE
