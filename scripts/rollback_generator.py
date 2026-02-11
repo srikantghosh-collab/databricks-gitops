@@ -2,85 +2,52 @@ import json
 import os
 import re
 
-print("🔵 Generating rollback script...")
+print("Generating rollback script...")
 
-rollback_lines = []
+rollback_sql = "-- No rollback required"
 
-if not os.path.exists("ddl_output.json"):
-    print("No ddl_output.json found")
+if os.path.exists("ddl_output.json"):
 
-    with open("rollback.sql", "w") as f:
-        f.write("-- No rollback required")
+    with open("ddl_output.json") as f:
+        data = json.load(f)
 
-    exit(0)
+    ddl = data.get("ddl")
 
-with open("ddl_output.json", "r") as f:
-    data = json.load(f)
+    if ddl:
 
-# 🔥 NEW: support multiple DDLs
-ddls = data.get("ddls", [])
+        ddl_upper = ddl.upper()
 
-# backward compatibility (old format)
-if not ddls and data.get("ddl"):
-    ddls = [{"stmt": data["ddl"]}]
+        # CREATE → DROP
+        if ddl_upper.startswith("CREATE TABLE"):
+            match = re.search(r"CREATE TABLE\s+([^\s(]+)", ddl_upper)
 
-if not ddls:
-    print("No DDL found")
+            if match:
+                table = match.group(1)
+                rollback_sql = f"DROP TABLE IF EXISTS {table};"
 
-    with open("rollback.sql", "w") as f:
-        f.write("-- No rollback required")
+        # DROP → restore
+        elif ddl_upper.startswith("DROP TABLE"):
 
-    exit(0)
+            if os.path.exists("rollback_metadata.json"):
 
-for item in ddls:
+                with open("rollback_metadata.json") as mf:
+                    meta = json.load(mf)
 
-    ddl = item["stmt"].strip().upper()
-    print("Processing:", ddl)
+                original = meta["original_table"]
+                backup = meta["backup_table"]
 
-    rollback_sql = "-- No rollback action required"
-
-    # CREATE → DROP
-    if ddl.startswith("CREATE TABLE"):
-        match = re.search(r"CREATE TABLE\s+([^\s(]+)", ddl)
-        if match:
-            table = match.group(1)
-            rollback_sql = f"DROP TABLE IF EXISTS {table};"
-
-    # DROP → metadata restore
-    elif ddl.startswith("DROP TABLE"):
-
-        if os.path.exists("rollback_metadata.json"):
-
-            with open("rollback_metadata.json", "r") as mf:
-                meta = json.load(mf)
-
-            original = meta["original_table"]
-            backup = meta["backup_table"]
-            catalog = meta["catalog"]
-            schema = meta["schema"]
-
-            rollback_sql = f"""
-USE CATALOG {catalog};
-USE SCHEMA {schema};
-
+                rollback_sql = f"""
 DROP TABLE IF EXISTS {original};
-
 CREATE TABLE {original}
 AS SELECT * FROM {backup};
 """
 
-        else:
-            rollback_sql = "-- Metadata not found: manual restore required"
+            else:
+                rollback_sql = "-- Metadata not found: manual restore required"
 
-    # ALTER
-    elif ddl.startswith("ALTER TABLE"):
-        rollback_sql = "-- Manual rollback required for ALTER"
-
-    rollback_lines.append(rollback_sql)
-
-# ✅ write combined rollback file
+# Always create file
 with open("rollback.sql", "w") as f:
-    f.write("\n\n".join(rollback_lines))
+    f.write(rollback_sql)
 
-print("\nRollback script generated:")
-print("\n".join(rollback_lines))
+print("Rollback script generated:")
+print(rollback_sql)
