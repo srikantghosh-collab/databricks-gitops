@@ -68,20 +68,32 @@ ddl_candidates = []
 
 for line in diff.splitlines():
 
+    # Ignore git headers
     if line.startswith(("+++", "---")):
         continue
 
-    if line.startswith(("+", "-")):
-        stmt = line[1:].strip()
-        stmt_upper = stmt.upper()
+    # Only + or - lines
+    if not line.startswith(("+", "-")):
+        continue
 
-    if "CREATE TABLE" in stmt_upper or \
-       "DROP TABLE" in stmt_upper or \
-       "ALTER TABLE" in stmt_upper:
-       ddl_candidates.append(stmt)
+    stmt = line[1:].strip()
 
-# Prefer latest change (last line)
+    # Skip empty lines
+    if not stmt:
+        continue
+
+    stmt_upper = stmt.upper()
+
+    if (
+        "CREATE TABLE" in stmt_upper
+        or "DROP TABLE" in stmt_upper
+        or "ALTER TABLE" in stmt_upper
+    ):
+        ddl_candidates.append(stmt)
+
+# Pick latest DDL change
 ddl_stmt = ddl_candidates[-1] if ddl_candidates else None
+
 
 
 # ✅ Case 2: No executable DDL
