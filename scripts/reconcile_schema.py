@@ -44,8 +44,11 @@ if not os.path.exists(SCHEMA_FILE):
 with open(SCHEMA_FILE) as f:
     desired_config = yaml.safe_load(f)
 
-desired_tables = set(desired_config.get("tables", []))
-
+desired_tables = {
+    table["name"]
+    for table in desired_config.get("tables", [])
+}
+    
 print("Desired tables:", desired_tables)
 
 # ==============================
@@ -86,14 +89,36 @@ def log_audit(action, sql_stmt, status):
     """
 
     cursor.execute(audit_sql)
+    
+# ==============================
+# Helper: Build CREATE TABLE SQL
+# ==============================
+
+def build_create_sql(table_def):
+
+    cols = []
+
+    for col in table_def["columns"]:
+        cols.append(f"{col['name']} {col['type']}")
+
+    columns_sql = ", ".join(cols)
+
+    return f"CREATE TABLE {table_def['name']} ({columns_sql})"
 
 # ==============================
 # Auto-fix: Create missing tables
 # ==============================
 
-for table in missing:
+table_map = {
+    t["name"]: t
+    for t in desired_config.get("tables", [])
+}
 
-    create_sql = f"CREATE TABLE {table} (id INT)"
+for table_name in missing:
+
+    table_def = table_map[table_name]
+    create_sql = build_create_sql(table_def)
+
 
     if AUTO_FIX:
         try:
