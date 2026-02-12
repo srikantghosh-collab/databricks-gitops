@@ -44,12 +44,35 @@ if ddl_sql.upper().startswith("DROP"):
         env={**os.environ, "DDL_TABLE_NAME": table_name},
     )
 
-print("Executing DDL:")
-print(ddl_sql)
+commit_id = subprocess.check_output(
+    ["git", "rev-parse", "HEAD"],
+    text=True
+).strip()
 
-cursor.execute(ddl_sql)
+status = "SUCCESS"
 
-print("DDL executed successfully")
+try:
+    print("Executing DDL:")
+    print(ddl_sql)
 
-cursor.close()
-conn.close()
+    cursor.execute(ddl_sql)
+
+except Exception as e:
+    print("DDL execution failed:", str(e))
+    status = "FAILED"
+    raise
+
+finally:
+
+    audit_sql = f"""
+    INSERT INTO ddl_audit_log VALUES (
+      current_timestamp(),
+      '{commit_id}',
+      '{ddl_sql.replace("'", "''")}',
+      'EXECUTE',
+      '{status}'
+    )
+    """
+
+    cursor.execute(audit_sql)
+    print("Audit log recorded")
