@@ -1,4 +1,7 @@
-CREATE TABLE final_test_table2(id INT);
+CREATE TABLE audit_test (
+  id INT
+);
+
 
 
 
