@@ -123,16 +123,16 @@ for table_name in missing:
 
     if AUTO_FIX:
         try:
-            print(f"Creating missing table: {table}")
+            print(f"Creating missing table: {table_name}")
             cursor.execute(create_sql)
             log_audit("AUTO_CREATE", create_sql, "SUCCESS")
 
         except Exception as e:
-            print(f"Failed to create {table}:", str(e))
+            print(f"Failed to create {table_name}:", str(e))
             log_audit("AUTO_CREATE", create_sql, "FAILED")
 
     else:
-        print(f"⚠ Missing table detected (manual review): {table}")
+        print(f"⚠ Missing table detected (manual review): {table_name}")
 
 # ==============================
 # Auto-fix: Drop extra tables
