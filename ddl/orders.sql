@@ -1,6 +1,7 @@
-CREATE TABLE audit_test (
+CREATE TABLE audit_test1 (
   id INT
 );
+
 
 
 
