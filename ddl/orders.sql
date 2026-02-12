@@ -1,4 +1,4 @@
-CREATE TABLE audit_test1 (
+CREATE TABLE audit_test2(
   id INT
 );
 
