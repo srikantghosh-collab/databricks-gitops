@@ -229,6 +229,7 @@ stages:
         python scripts/reconcile_schema.py
       displayName: "Run Reconciliation"
       env:
+        AUTO_FIX: "true"
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)

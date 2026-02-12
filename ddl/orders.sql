@@ -1,6 +1,6 @@
-CREATE TABLE audit_test2(
-  id INT
-);
+
+CREATE TABLE poc_demo_table (id INT);
+
 
 
 

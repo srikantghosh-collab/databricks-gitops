@@ -1,54 +1,139 @@
-import yaml
-import os
 from databricks import sql
+import os
+import yaml
+import json
 
 print("🔵 Starting schema reconciliation...")
 
-# Load desired schema from Git
-with open("schemas/tables.yaml") as f:
-    desired = yaml.safe_load(f)
+# ==============================
+# CONFIG
+# ==============================
 
-desired_tables = {t["name"]: t for t in desired["tables"]}
+CATALOG = "hive_metastore"
+SCHEMA = "default"
 
+# AUTO_FIX toggle (default = false for safety)
+AUTO_FIX = os.environ.get("AUTO_FIX", "false").lower() == "true"
+
+SCHEMA_FILE = "schema/tables.yaml"
+
+print(f"AUTO_FIX mode: {AUTO_FIX}")
+
+# ==============================
 # Connect to Databricks
+# ==============================
+
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    access_token=os.environ["DATABRICKS_TOKEN"],
+    access_token=os.environ["DATABRICKS_TOKEN"]
 )
 
 cursor = conn.cursor()
 
-# Fetch live tables
-cursor.execute("SHOW TABLES IN default")
-live_tables = {row[1] for row in cursor.fetchall()}
+cursor.execute(f"USE CATALOG {CATALOG}")
+cursor.execute(f"USE SCHEMA {SCHEMA}")
+
+# ==============================
+# Load desired schema (Git)
+# ==============================
+
+if not os.path.exists(SCHEMA_FILE):
+    raise Exception(f"{SCHEMA_FILE} not found")
+
+with open(SCHEMA_FILE) as f:
+    desired_config = yaml.safe_load(f)
+
+desired_tables = set(desired_config.get("tables", []))
+
+print("Desired tables:", desired_tables)
+
+# ==============================
+# Get live tables (Databricks)
+# ==============================
+
+cursor.execute("SHOW TABLES")
+rows = cursor.fetchall()
+
+live_tables = {row[1] for row in rows}
 
 print("Live tables:", live_tables)
-print("Desired tables:", set(desired_tables.keys()))
 
-missing_tables = set(desired_tables.keys()) - live_tables
-extra_tables = live_tables - set(desired_tables.keys())
+# ==============================
+# Drift detection
+# ==============================
 
-print("Missing tables:", missing_tables)
-print("Extra tables:", extra_tables)
+missing = desired_tables - live_tables
+extra = live_tables - desired_tables
 
-# Function to generate CREATE TABLE
-def generate_create(table):
-    cols = ", ".join(
-        f'{c["name"]} {c["type"]}'
-        for c in table["columns"]
+print("Missing tables:", missing)
+print("Extra tables:", extra)
+
+# ==============================
+# Helper: Audit logging
+# ==============================
+
+def log_audit(action, sql_stmt, status):
+
+    audit_sql = f"""
+    INSERT INTO ddl_audit_log VALUES (
+        current_timestamp(),
+        'reconciliation',
+        '{sql_stmt.replace("'", "''")}',
+        '{action}',
+        '{status}'
     )
-    return f"CREATE TABLE {table['name']} ({cols})"
+    """
 
-# Create missing tables
-for name in missing_tables:
-    table = desired_tables[name]
-    ddl = generate_create(table)
-    print("Executing:", ddl)
-    cursor.execute(ddl)
+    cursor.execute(audit_sql)
 
-# Warn about extra tables (do NOT auto-drop)
-for table in extra_tables:
-    print(f"⚠️ Extra table detected (manual review needed): {table}")
+# ==============================
+# Auto-fix: Create missing tables
+# ==============================
+
+for table in missing:
+
+    create_sql = f"CREATE TABLE {table} (id INT)"
+
+    if AUTO_FIX:
+        try:
+            print(f"Creating missing table: {table}")
+            cursor.execute(create_sql)
+            log_audit("AUTO_CREATE", create_sql, "SUCCESS")
+
+        except Exception as e:
+            print(f"Failed to create {table}:", str(e))
+            log_audit("AUTO_CREATE", create_sql, "FAILED")
+
+    else:
+        print(f"⚠ Missing table detected (manual review): {table}")
+
+# ==============================
+# Auto-fix: Drop extra tables
+# ==============================
+
+for table in extra:
+
+    drop_sql = f"DROP TABLE {table}"
+
+    if AUTO_FIX:
+        try:
+            print(f"Dropping extra table: {table}")
+            cursor.execute(drop_sql)
+            log_audit("AUTO_DROP", drop_sql, "SUCCESS")
+
+        except Exception as e:
+            print(f"Failed to drop {table}:", str(e))
+            log_audit("AUTO_DROP", drop_sql, "FAILED")
+
+    else:
+        print(f"⚠ Extra table detected (manual review): {table}")
+
+# ==============================
+# Cleanup
+# ==============================
+
+cursor.close()
+conn.close()
 
 print("✅ Reconciliation complete")
