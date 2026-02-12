@@ -45,9 +45,10 @@ with open(SCHEMA_FILE) as f:
     desired_config = yaml.safe_load(f)
 
 desired_tables = {
-    table["name"]
-    for table in desired_config.get("tables", [])
+    t["name"]
+    for t in desired_config.get("tables", [])
 }
+
     
 print("Desired tables:", desired_tables)
 
