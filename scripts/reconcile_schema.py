@@ -15,7 +15,7 @@ SCHEMA = "default"
 # AUTO_FIX toggle (default = false for safety)
 AUTO_FIX = os.environ.get("AUTO_FIX", "false").lower() == "true"
 
-SCHEMA_FILE = "schema/tables.yaml"
+SCHEMA_FILE = "schemas/tables.yaml"
 
 print(f"AUTO_FIX mode: {AUTO_FIX}")
 
