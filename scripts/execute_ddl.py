@@ -1,25 +1,18 @@
 from databricks import sql
 import os
-import json
 import subprocess
 
 print("Starting DDL execution...")
 
-# Read detected DDL
-if not os.path.exists("ddl_output.json"):
-    print("No DDL artifact found")
-    exit(0)
+DDL_FILE = "ddl/orders.sql"
 
-with open("ddl_output.json") as f:
-    data = json.load(f)
-
-ddl_sql = data.get("ddl")
+with open(DDL_FILE, "r") as f:
+    ddl_sql = f.read().strip()
 
 if not ddl_sql:
-    print("No DDL to execute")
+    print("Empty SQL file — nothing to execute")
     exit(0)
 
-# Connect to Databricks
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
@@ -52,7 +45,7 @@ commit_id = subprocess.check_output(
 status = "SUCCESS"
 
 try:
-    print("Executing DDL:")
+    print("Executing full SQL file:")
     print(ddl_sql)
 
     cursor.execute(ddl_sql)
@@ -76,3 +69,7 @@ finally:
 
     cursor.execute(audit_sql)
     print("Audit log recorded")
+
+cursor.close()
+conn.close()
+print("Connection closed")
