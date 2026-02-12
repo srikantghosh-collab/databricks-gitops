@@ -134,13 +134,23 @@ for table_name in missing:
     else:
         print(f"⚠ Missing table detected (manual review): {table_name}")
 
+        
+
+
 # ==============================
 # Auto-fix: Drop extra tables
 # ==============================
 
+PROTECTED_TABLES = {"ddl_audit_log"}
+
 for table in extra:
 
-    drop_sql = f"DROP TABLE {table}"
+    # Skip system & backup tables
+    if table in PROTECTED_TABLES or "_backup_" in table:
+        print(f"Skipping protected table: {table}")
+        continue
+
+    drop_sql = f"DROP TABLE IF EXISTS {table}"
 
     if AUTO_FIX:
         try:
