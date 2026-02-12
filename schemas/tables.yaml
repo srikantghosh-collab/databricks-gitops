@@ -14,3 +14,11 @@ tables:
         type: INT
       - name: amount
         type: DOUBLE
+
+  - name: reconciliation_test
+    schema: default
+    columns:
+      - name: test_id
+        type: INT
+      - name: test_value
+        type: STRING
