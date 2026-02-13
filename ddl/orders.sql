@@ -21,4 +21,3 @@ CREATE TABLE poc_demo_table8 (id INT);
 
 
 
-
