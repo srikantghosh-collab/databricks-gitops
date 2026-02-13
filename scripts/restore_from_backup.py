@@ -32,4 +32,4 @@ AS SELECT * FROM {backup}
 """)
 
 
-print("Restore complete ✅")
+print("Restore complete ")

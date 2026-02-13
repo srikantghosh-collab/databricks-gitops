@@ -3,11 +3,9 @@ import os
 import yaml
 import json
 
-print("🔵 Starting schema reconciliation...")
+print(" Starting schema reconciliation...")
 
-# ==============================
 # CONFIG
-# ==============================
 
 CATALOG = "hive_metastore"
 SCHEMA = "default"
@@ -18,10 +16,8 @@ AUTO_FIX = os.environ.get("AUTO_FIX", "false").lower() == "true"
 SCHEMA_FILE = "schemas/tables.yaml"
 
 print(f"AUTO_FIX mode: {AUTO_FIX}")
-
-# ==============================
+ 
 # Connect to Databricks
-# ==============================
 
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
@@ -34,9 +30,7 @@ cursor = conn.cursor()
 cursor.execute(f"USE CATALOG {CATALOG}")
 cursor.execute(f"USE SCHEMA {SCHEMA}")
 
-# ==============================
 # Load desired schema (Git)
-# ==============================
 
 if not os.path.exists(SCHEMA_FILE):
     raise Exception(f"{SCHEMA_FILE} not found")
@@ -52,9 +46,7 @@ desired_tables = {
     
 print("Desired tables:", desired_tables)
 
-# ==============================
 # Get live tables (Databricks)
-# ==============================
 
 cursor.execute("SHOW TABLES")
 rows = cursor.fetchall()
@@ -63,9 +55,7 @@ live_tables = {row[1] for row in rows}
 
 print("Live tables:", live_tables)
 
-# ==============================
 # Drift detection
-# ==============================
 
 missing = desired_tables - live_tables
 extra = live_tables - desired_tables
@@ -73,9 +63,8 @@ extra = live_tables - desired_tables
 print("Missing tables:", missing)
 print("Extra tables:", extra)
 
-# ==============================
+
 # Helper: Audit logging
-# ==============================
 
 def log_audit(action, sql_stmt, status):
 
@@ -91,9 +80,7 @@ def log_audit(action, sql_stmt, status):
 
     cursor.execute(audit_sql)
     
-# ==============================
 # Helper: Build CREATE TABLE SQL
-# ==============================
 
 def build_create_sql(table_def):
 
@@ -106,9 +93,7 @@ def build_create_sql(table_def):
 
     return f"CREATE TABLE {table_def['name']} ({columns_sql})"
 
-# ==============================
 # Auto-fix: Create missing tables
-# ==============================
 
 table_map = {
     t["name"]: t
@@ -137,9 +122,8 @@ for table_name in missing:
         
 
 
-# ==============================
 # Auto-fix: Drop extra tables
-# ==============================
+
 
 PROTECTED_TABLES = {"ddl_audit_log"}
 
@@ -165,11 +149,11 @@ for table in extra:
     else:
         print(f"⚠ Extra table detected (manual review): {table}")
 
-# ==============================
+
 # Cleanup
-# ==============================
+
 
 cursor.close()
 conn.close()
 
-print("✅ Reconciliation complete")
+print(" Reconciliation complete")

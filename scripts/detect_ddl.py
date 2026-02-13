@@ -25,7 +25,7 @@ except subprocess.CalledProcessError:
 
 ddl_files = [f for f in changed_files if f.lower().endswith(".sql")]
 
-# ❌ No DDL files
+#  No DDL files
 if not ddl_files:
     print("No DDL changes")
 
@@ -60,7 +60,7 @@ for line in diff.splitlines():
         ddl_stmt = stmt
         break
 
-# ❌ No executable DDL
+#  No executable DDL
 if not ddl_stmt:
     print("No executable DDL found")
 
@@ -70,7 +70,7 @@ if not ddl_stmt:
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
-# ✅ Valid DDL
+#  Valid DDL
 is_drop = ddl_stmt.upper().startswith("DROP")
 
 with open(output_path, "w") as f:

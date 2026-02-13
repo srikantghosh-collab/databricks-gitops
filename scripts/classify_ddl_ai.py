@@ -4,7 +4,7 @@ import sys
 from openai import AzureOpenAI
 
 
-print("🔵 AI Classification Stage Starting...")
+print(" AI Classification Stage Starting...")
 
 # Step 1: Load detected DDL
 if not os.path.exists("ddl_output.json"):
@@ -80,4 +80,4 @@ sys.stdout.flush()
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 sys.stdout.flush()
 
-print("🔵 AI Classification Complete")
+print(" AI Classification Complete")

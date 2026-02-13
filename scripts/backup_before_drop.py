@@ -33,7 +33,7 @@ def backup_table(table_name):
 
     print(f"Backup table created: {backup_table_name}")
 
-    # ✅ Metadata save
+    #  Metadata save
     metadata = {
         "catalog": CATALOG,
         "schema": SCHEMA,

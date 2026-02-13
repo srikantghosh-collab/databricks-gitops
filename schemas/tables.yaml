@@ -22,3 +22,9 @@ tables:
         type: INT
       - name: test_value
         type: STRING
+
+  - name: poc_demo_table7
+    schema: default
+    columns:
+      - name: id
+        type: INT

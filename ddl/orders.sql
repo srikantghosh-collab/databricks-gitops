@@ -1,5 +1,5 @@
 
-CREATE TABLE poc_demo_table6 (id INT);
+CREATE TABLE poc_demo_table7 (id INT);
 
 
 

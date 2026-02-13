@@ -6,9 +6,8 @@ variables:
 
 stages:
 
-# ======================
 # STAGE 1: DETECT
-# ======================
+
 - stage: Detect
   displayName: "Detect DDL Changes"
   jobs:
@@ -24,7 +23,6 @@ stages:
       inputs:
         versionSpec: $(PYTHON_VERSION)
 
-    # IMPORTANT: step name is required to expose output variables
     - script: |
         python scripts/detect_ddl.py
       name: detectddl
@@ -42,9 +40,9 @@ stages:
        publishLocation: 'pipeline'
       displayName: "Publish DDL Artifact"
 
-# ======================
+
 # STAGE 2: AI CLASSIFICATION
-# ======================
+
 - stage: AI
   displayName: "AI DDL Classification"
   dependsOn: Detect
@@ -79,9 +77,8 @@ stages:
         AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
         AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
-# ==================================
-# STAGE 3: Generate Rollback Script
-# ==================================    
+
+# STAGE 3: Generate Rollback Script    
 
 - stage: RollbackGen
   displayName: "Generate Rollback Script"
@@ -114,9 +111,9 @@ stages:
 
 
 
-# ======================
-# STAGE 4: MANUAL APPROVAL (ONLY FOR DROP)
-# ======================
+
+# STAGE 4: MANUAL APPROVAL 
+
 - stage: Approval
   displayName: "Manual Approval for DROP"
   dependsOn: AI
@@ -138,9 +135,9 @@ stages:
         timeoutInMinutes: 1440
 
 
-# ======================
+
 # STAGE 5: EXECUTE
-# ======================
+
 - stage: Execute
   displayName: "Execute DDL"
   dependsOn:
@@ -205,9 +202,8 @@ stages:
       displayName: "Publish Rollback Metadata"
 
 
-# ======================
 # STAGE 6: RECONCILE
-# ======================
+
 - stage: Reconcile
   displayName: "Schema Reconciliation"
   dependsOn: Execute
@@ -234,9 +230,9 @@ stages:
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
-# ======================
+
 # STAGE 7: AUTO ROLLBACK (PHASE-2)
-# ======================
+
 - stage: AutoRollback
   displayName: "Auto Rollback from Backup"
   dependsOn: Detect
