@@ -122,32 +122,24 @@ for table_name in missing:
         
 
 
-# Auto-fix: Drop extra tables
+# Detect Extra Tables (Manual Review Only)
 
 
 PROTECTED_TABLES = {"ddl_audit_log"}
 
-for table in extra:
+for table_name in extra:
 
-    # Skip system & backup tables
-    if table in PROTECTED_TABLES or "_backup_" in table:
-        print(f"Skipping protected table: {table}")
+    # Skip protected & backup tables
+    if table_name in PROTECTED_TABLES or "_backup_" in table_name:
+        print(f"Skipping protected table: {table_name}")
         continue
 
-    drop_sql = f"DROP TABLE IF EXISTS {table}"
+    print(f"⚠ Extra table detected (manual review required): {table_name}")
 
-    if AUTO_FIX:
-        try:
-            print(f"Dropping extra table: {table}")
-            cursor.execute(drop_sql)
-            log_audit("AUTO_DROP", drop_sql, "SUCCESS")
+    drop_sql = f"DROP TABLE IF EXISTS {table_name}"
 
-        except Exception as e:
-            print(f"Failed to drop {table}:", str(e))
-            log_audit("AUTO_DROP", drop_sql, "FAILED")
-
-    else:
-        print(f"⚠ Extra table detected (manual review): {table}")
+    # Log drift only (NO DELETE)
+    log_audit("DRIFT_EXTRA_TABLE", drop_sql, "REVIEW_REQUIRED")
 
 
 # Cleanup
