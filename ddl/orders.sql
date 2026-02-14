@@ -1,5 +1,6 @@
 
-CREATE TABLE poc_demo_table8 (id INT);
+CREATE TABLE IF NOT EXISTS t1 (id INT);
+
 
 
 
