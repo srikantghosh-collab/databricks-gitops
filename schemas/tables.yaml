@@ -28,3 +28,17 @@ tables:
     columns:
       - name: id
         type: INT
+
+  - name: demo1
+    schema: default
+    columns:
+      - name: id
+        type: INT
+
+  - name: demo2
+    schema: default
+    columns:
+      - name: id
+        type: INT
+      - name: name
+        type: STRING
