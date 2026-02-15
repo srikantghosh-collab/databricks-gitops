@@ -1,6 +1,9 @@
-ALTER TABLE employee_master
-SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name');
 
-ALTER TABLE employee_master RENAME COLUMN emp_name TO full_name;
+ALTER TABLE employee_master DROP COLUMN department;
 
+ALTER TABLE employee_master ALTER COLUMN salary TYPE INT;
+
+TRUNCATE TABLE employee_master;
+
+DROP TABLE employee_master;
 
