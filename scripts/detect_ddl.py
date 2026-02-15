@@ -2,89 +2,101 @@ import subprocess
 import json
 import sys
 import os
-
-def git_output(cmd):
-    return subprocess.check_output(cmd, text=True).strip()
+import re
 
 print("Detecting DDL changes...")
+
+DDL_FILE = "ddl/orders.sql"
 
 output_path = os.path.join(
     os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
     "ddl_output.json"
 )
 
-# Get changed files
-try:
-    changed_files = git_output(
-        ["git", "diff", "--name-only", "HEAD~1", "HEAD"]
-    ).splitlines()
-except subprocess.CalledProcessError:
-    changed_files = git_output(
-        ["git", "show", "--name-only", "--pretty=", "HEAD"]
-    ).splitlines()
-
-ddl_files = [f for f in changed_files if f.lower().endswith(".sql")]
-
-#  No DDL files
-if not ddl_files:
-    print("No DDL changes")
+# If SQL file does not exist
+if not os.path.exists(DDL_FILE):
+    print("No SQL file found")
 
     with open(output_path, "w") as f:
-        json.dump({"file": None, "ddl": None, "is_drop": False}, f, indent=2)
+        json.dump({"ddls": [], "is_drop": False}, f, indent=2)
 
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
-ddl_file = ddl_files[0]
 
-# Get diff
-try:
-    diff = git_output(["git", "diff", "HEAD~1", "HEAD", "--", ddl_file])
-except subprocess.CalledProcessError:
-    diff = git_output(["git", "show", "HEAD", "--", ddl_file])
+# Read full SQL file
+with open(DDL_FILE, "r") as f:
+    sql_text = f.read()
 
-ddl_stmt = None
 
-for line in diff.splitlines():
+# Split SQL statements safely
+def split_sql_statements(sql):
+    statements = []
+    buffer = ""
 
-    if line.startswith(("+++", "---")):
-        continue
+    for line in sql.splitlines():
+        line = line.strip()
 
-    if not line.startswith("+"):
-        continue
+        if not line or line.startswith("--"):
+            continue
 
-    stmt = line[1:].strip()
+        buffer += " " + line
+
+        if ";" in line:
+            statements.append(buffer.strip())
+            buffer = ""
+
+    if buffer:
+        statements.append(buffer.strip())
+
+    return statements
+
+
+statements = split_sql_statements(sql_text)
+
+ddl_list = []
+
+for stmt in statements:
     stmt_upper = stmt.upper()
 
-    if stmt_upper.startswith(("CREATE", "DROP", "ALTER")):
-        ddl_stmt = stmt
-        break
+    if stmt_upper.startswith(("CREATE", "ALTER", "DROP")):
+        ddl_list.append({
+            "statement": stmt,
+            "type": stmt_upper.split()[0]
+        })
 
-#  No executable DDL
-if not ddl_stmt:
+
+# No DDL found
+if not ddl_list:
     print("No executable DDL found")
 
     with open(output_path, "w") as f:
-        json.dump({"file": None, "ddl": None, "is_drop": False}, f, indent=2)
+        json.dump({"ddls": [], "is_drop": False}, f, indent=2)
 
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
-#  Valid DDL
-is_drop = ddl_stmt.upper().startswith("DROP")
 
+# Check if any DROP exists
+is_drop = any(d["type"] == "DROP" for d in ddl_list)
+
+
+# Write artifact
 with open(output_path, "w") as f:
     json.dump(
         {
-            "file": ddl_file,
-            "ddl": ddl_stmt,
-            "is_drop": is_drop,
+            "commit_id": subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                text=True
+            ).strip(),
+            "ddls": ddl_list,
+            "is_drop": is_drop
         },
         f,
         indent=2,
     )
 
-print("DDL detected:", ddl_stmt)
+print(f"{len(ddl_list)} DDL statements detected")
 print("IS_DROP:", is_drop)
 
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")

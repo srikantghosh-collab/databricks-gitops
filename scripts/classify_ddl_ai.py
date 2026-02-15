@@ -3,44 +3,54 @@ import os
 import sys
 from openai import AzureOpenAI
 
+print("AI Classification Stage Starting...")
 
-print(" AI Classification Stage Starting...")
-
-# Step 1: Load detected DDL
 if not os.path.exists("ddl_output.json"):
-    print("No ddl_output.json found — skipping AI classification")
+    print("No ddl_output.json found — skipping")
     sys.exit(0)
 
 with open("ddl_output.json", "r") as f:
     data = json.load(f)
 
-ddl = data.get("ddl")
+ddls = data.get("ddls", [])
 
-if not ddl:
-    print("No DDL found — skipping AI classification")
+if not ddls:
+    print("No DDL found — skipping")
     sys.exit(0)
 
-ddl = ddl.strip()
+client = None
+
+# Try to initialize Azure OpenAI
+try:
+    client = AzureOpenAI(
+        api_key=os.environ["AZURE_OPENAI_KEY"],
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        api_version="2024-02-15-preview"
+    )
+except Exception as e:
+    print("AI client init failed — fallback mode:", e)
 
 
-if not ddl:
-    print("No DDL found")
-    sys.exit(0)
+final_is_drop = False
 
-print("DDL to classify:", ddl)
+for ddl_obj in ddls:
 
-client = AzureOpenAI(
-    api_key=os.environ["AZURE_OPENAI_KEY"],
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    api_version="2024-02-15-preview"
-)
+    ddl_stmt = ddl_obj["statement"]
+    ddl_type = ddl_obj["type"]
 
-prompt = f"""
+    print("Classifying:", ddl_stmt)
+
+    classification = None
+
+    # Try AI if available
+    if client:
+        try:
+            prompt = f"""
 You are a SQL safety analyzer.
 
 Classify this DDL statement:
 
-{ddl}
+{ddl_stmt}
 
 Return ONLY JSON:
 
@@ -49,35 +59,41 @@ or
 {{ "classification": "irreversible" }}
 """
 
-try:
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
-    )
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0
+            )
 
-    result = json.loads(response.choices[0].message.content)
-    classification = result["classification"]
+            result = json.loads(response.choices[0].message.content)
+            classification = result["classification"].strip().lower()
 
-except Exception as e:
-    print("AI failed — using fallback rule")
-    print("Error:", e)
+        except Exception as e:
+            print("AI failed — fallback rule used:", e)
 
-    classification = (
-        "irreversible"
-        if ddl.upper().startswith("DROP")
-        else "reversible"
-    )
+    # Fallback rule
+    if not classification:
+        classification = (
+            "irreversible"
+            if ddl_type == "DROP"
+            else "reversible"
+        )
 
-classification = classification.strip().lower()
-print("AI classification:", classification)
+    ddl_obj["classification"] = classification
 
-is_drop = classification == "irreversible"
-print("FINAL IS_DROP VALUE:", is_drop)
+    print("→ Classified as:", classification)
 
-# Pipeline variable
-sys.stdout.flush()
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
-sys.stdout.flush()
+    if classification == "irreversible":
+        final_is_drop = True
 
-print(" AI Classification Complete")
+
+# Update artifact with classification
+with open("ddl_output.json", "w") as f:
+    json.dump(data, f, indent=2)
+
+
+print("FINAL IS_DROP VALUE:", final_is_drop)
+
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(final_is_drop).lower()}")
+
+print("AI Classification Complete")

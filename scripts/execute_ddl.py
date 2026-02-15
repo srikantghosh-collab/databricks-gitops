@@ -1,6 +1,7 @@
 from databricks import sql
 import os
 import subprocess
+import re
 from ddl_parser import parse_sql_file
 
 print("Starting DDL execution...")
@@ -32,10 +33,24 @@ cursor.execute("USE SCHEMA default")
 
 print("Catalog & schema set")
 
+# Ensure audit table exists
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS ddl_audit_log (
+  timestamp TIMESTAMP,
+  commit_id STRING,
+  ddl_statement STRING,
+  action STRING,
+  status STRING
+)
+USING DELTA
+""")
+
 commit_id = subprocess.check_output(
     ["git", "rev-parse", "HEAD"],
     text=True
 ).strip()
+
+overall_failure = False
 
 # Execute each DDL separately
 for ddl_sql in statements:
@@ -46,23 +61,35 @@ for ddl_sql in statements:
         print("\nExecuting DDL:")
         print(ddl_sql)
 
+        ddl_upper = ddl_sql.upper()
+
+        # -----------------------------
         # Backup before DROP
-        if ddl_sql.upper().startswith("DROP TABLE"):
-            table_name = ddl_sql.split()[2]
+        # -----------------------------
+        if ddl_upper.startswith("DROP TABLE"):
 
-            print("DROP detected — taking backup")
-
-            subprocess.check_call(
-                ["python", "scripts/backup_before_drop.py"],
-                env={**os.environ, "DDL_TABLE_NAME": table_name},
+            match = re.search(
+                r"DROP TABLE\s+(IF EXISTS\s+)?([^\s;]+)",
+                ddl_sql,
+                re.IGNORECASE
             )
 
+            if match:
+                table_name = match.group(2)
+                print(f"DROP detected — taking backup of {table_name}")
+
+                subprocess.check_call(
+                    ["python", "scripts/backup_before_drop.py"],
+                    env={**os.environ, "DDL_TABLE_NAME": table_name},
+                )
+
+        # Execute statement
         cursor.execute(ddl_sql)
 
     except Exception as e:
         print("DDL execution failed:", str(e))
         status = "FAILED"
-        raise
+        overall_failure = True
 
     finally:
         audit_sql = f"""
@@ -75,10 +102,17 @@ for ddl_sql in statements:
         )
         """
 
-        cursor.execute(audit_sql)
-        print("Audit log recorded")
+        try:
+            cursor.execute(audit_sql)
+            print("Audit log recorded")
+        except Exception as audit_error:
+            print("Audit logging failed:", audit_error)
 
+# Cleanup
 cursor.close()
 conn.close()
 
-print("All DDL statements executed successfully")
+if overall_failure:
+    raise Exception("One or more DDL statements failed")
+
+print("All DDL statements executed")

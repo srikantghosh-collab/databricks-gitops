@@ -1,30 +1,43 @@
+import re
 
-
-def parse_sql_file(file_path):
+def split_sql_statements(sql_text):
     """
-    Reads a SQL file and splits it into executable DDL statements.
-    Handles multi-line DDL properly.
+    Splits SQL file into individual statements safely.
+    Handles multi-line statements.
     """
-
-    with open(file_path, "r") as f:
-        full_sql = f.read()
 
     statements = []
-    current_stmt = ""
+    buffer = ""
 
-    for line in full_sql.splitlines():
+    for line in sql_text.splitlines():
+        line = line.strip()
 
-        stripped = line.strip()
-
-        # Skip empty lines & comments
-        if not stripped or stripped.startswith("--"):
+        if not line or line.startswith("--"):
             continue
 
-        current_stmt += stripped + " "
+        buffer += " " + line
 
-        # End of statement
-        if stripped.endswith(";"):
-            statements.append(current_stmt.strip().rstrip(";"))
-            current_stmt = ""
+        if line.endswith(";"):
+            statements.append(buffer.strip())
+            buffer = ""
+
+    if buffer:
+        statements.append(buffer.strip())
 
     return statements
+
+
+def extract_ddls(statements):
+    ddl_list = []
+
+    for stmt in statements:
+        stmt_upper = stmt.upper()
+
+        if stmt_upper.startswith(("CREATE", "ALTER", "DROP")):
+            ddl_list.append({
+                "statement": stmt,
+                "type": stmt_upper.split()[0],
+                "classification": None
+            })
+
+    return ddl_list

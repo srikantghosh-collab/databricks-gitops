@@ -1,5 +1,5 @@
 
-CREATE TABLE IF NOT EXISTS employee (
+CREATE TABLE IF NOT EXISTS employees (
   emp_id INT,
   emp_name STRING,
   department STRING,
@@ -16,6 +16,7 @@ ALTER TABLE employee SET TBLPROPERTIES (
   'delta.logRetentionDuration' = 'interval 30 days',
   'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
+
 
 
 

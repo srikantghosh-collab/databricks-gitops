@@ -4,38 +4,49 @@ import re
 
 print("Generating rollback script...")
 
-rollback_sql = "-- No rollback required"
+rollback_statements = []
 
-if os.path.exists("ddl_output.json"):
+if not os.path.exists("ddl_output.json"):
+    print("No ddl_output.json found")
+else:
 
     with open("ddl_output.json") as f:
         data = json.load(f)
 
-    ddl = data.get("ddl")
+    ddls = data.get("ddls", [])
 
-    if ddl:
+    # Reverse execution order
+    for ddl_obj in reversed(ddls):
+
+        ddl = ddl_obj["statement"]
+        ddl_type = ddl_obj.get("type", "").upper()
+        classification = ddl_obj.get("classification", "").lower()
 
         ddl_upper = ddl.upper()
 
-        # =========================
-        # CREATE → DROP
-        # =========================
-        if ddl_upper.startswith("CREATE TABLE"):
+        print("Processing for rollback:", ddl)
+
+        # ====================================
+        # CREATE TABLE → DROP TABLE
+        # ====================================
+        if ddl_type == "CREATE":
 
             match = re.search(
-                r"CREATE TABLE\s+([^\s(]+)",
+                r"CREATE TABLE\s+(IF NOT EXISTS\s+)?([^\s(]+)",
                 ddl,
                 re.IGNORECASE
             )
 
             if match:
-                table = match.group(1)
-                rollback_sql = f"DROP TABLE IF EXISTS {table};"
+                table = match.group(2)
+                rollback_statements.append(
+                    f"DROP TABLE IF EXISTS {table};"
+                )
 
-        # =========================
-        # ALTER TABLE handler
-        # =========================
-        elif ddl_upper.startswith("ALTER TABLE"):
+        # ====================================
+        # ALTER TABLE
+        # ====================================
+        elif ddl_type == "ALTER":
 
             table_match = re.search(
                 r"ALTER TABLE\s+([^\s]+)",
@@ -44,61 +55,63 @@ if os.path.exists("ddl_output.json"):
             )
 
             if not table_match:
-                rollback_sql = "-- Could not detect table name"
+                rollback_statements.append(
+                    "-- Could not detect table name for ALTER"
+                )
+                continue
+
+            table = table_match.group(1)
+
+            # ADD COLUMN
+            add_match = re.search(
+                r"ADD COLUMN\s+([^\s]+)",
+                ddl,
+                re.IGNORECASE
+            )
+
+            # RENAME COLUMN
+            rename_match = re.search(
+                r"RENAME COLUMN\s+([^\s]+)\s+TO\s+([^\s]+)",
+                ddl,
+                re.IGNORECASE
+            )
+
+            # DROP COLUMN
+            drop_match = re.search(
+                r"DROP COLUMN\s+([^\s]+)",
+                ddl,
+                re.IGNORECASE
+            )
+
+            if add_match:
+                column = add_match.group(1)
+
+                rollback_statements.append(
+                    f"ALTER TABLE {table} DROP COLUMN {column};"
+                )
+
+            elif rename_match:
+                old_col = rename_match.group(1)
+                new_col = rename_match.group(2)
+
+                rollback_statements.append(
+                    f"ALTER TABLE {table} RENAME COLUMN {new_col} TO {old_col};"
+                )
+
+            elif drop_match:
+                rollback_statements.append(
+                    f"-- DROP COLUMN detected on {table}: manual restore required"
+                )
 
             else:
-                table = table_match.group(1)
-
-                # ADD COLUMN
-                add_match = re.search(
-                    r"ADD COLUMN\s+([^\s]+)",
-                    ddl,
-                    re.IGNORECASE
+                rollback_statements.append(
+                    f"-- Unsupported ALTER operation on {table}"
                 )
 
-                # RENAME COLUMN
-                rename_match = re.search(
-                    r"RENAME COLUMN\s+([^\s]+)\s+TO\s+([^\s]+)",
-                    ddl,
-                    re.IGNORECASE
-                )
-
-                # DROP COLUMN
-                drop_match = re.search(
-                    r"DROP COLUMN\s+([^\s]+)",
-                    ddl,
-                    re.IGNORECASE
-                )
-
-                if add_match:
-                    column = add_match.group(1)
-
-                    rollback_sql = f"""
-ALTER TABLE {table}
-DROP COLUMN {column};
-"""
-
-                elif rename_match:
-                    old_col = rename_match.group(1)
-                    new_col = rename_match.group(2)
-
-                    rollback_sql = f"""
-ALTER TABLE {table}
-RENAME COLUMN {new_col} TO {old_col};
-"""
-
-                elif drop_match:
-                    rollback_sql = (
-                        "-- DROP COLUMN detected: restore from backup required"
-                    )
-
-                else:
-                    rollback_sql = "-- Unsupported ALTER operation"
-
-        # =========================
-        # DROP → restore
-        # =========================
-        elif ddl_upper.startswith("DROP TABLE"):
+        # ====================================
+        # DROP TABLE → Restore from backup
+        # ====================================
+        elif ddl_type == "DROP":
 
             if os.path.exists("rollback_metadata.json"):
 
@@ -108,16 +121,35 @@ RENAME COLUMN {new_col} TO {old_col};
                 original = meta["original_table"]
                 backup = meta["backup_table"]
 
-                rollback_sql = f"""
-DROP TABLE IF EXISTS {original};
-CREATE TABLE {original}
-AS SELECT * FROM {backup};
-"""
+                rollback_statements.append(
+                    f"DROP TABLE IF EXISTS {original};"
+                )
+
+                rollback_statements.append(
+                    f"CREATE TABLE {original} AS SELECT * FROM {backup};"
+                )
 
             else:
-                rollback_sql = "-- Metadata not found: manual restore required"
+                rollback_statements.append(
+                    "-- Metadata not found for DROP: manual restore required"
+                )
 
-# Always create file
+        # ====================================
+        # Unsupported DDL
+        # ====================================
+        else:
+            rollback_statements.append(
+                f"-- Unsupported DDL type: {ddl_type}"
+            )
+
+
+# If nothing generated
+if not rollback_statements:
+    rollback_sql = "-- No rollback required"
+else:
+    rollback_sql = "\n".join(rollback_statements)
+
+
 with open("rollback.sql", "w") as f:
     f.write(rollback_sql)
 
