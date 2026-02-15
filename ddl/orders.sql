@@ -1,42 +1,12 @@
+ALTER TABLE employees ADD COLUMN email STRING;
 
-CREATE TABLE IF NOT EXISTS employees (
-  emp_id INT,
-  emp_name STRING,
-  department STRING,
-  salary DECIMAL(10,2),
-  created_date TIMESTAMP
-) USING DELTA;
+ALTER TABLE employees RENAME COLUMN emp_name TO full_name;
 
-INSERT INTO employee VALUES
-(1, 'John', 'IT', 60000, current_timestamp()),
-(2, 'Sara', 'HR', 50000, current_timestamp()),
-(3, 'Mike', 'Finance', 70000, current_timestamp());
+ALTER TABLE employees ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 
-ALTER TABLE employee SET TBLPROPERTIES (
-  'delta.logRetentionDuration' = 'interval 30 days',
-  'delta.deletedFileRetentionDuration' = 'interval 30 days'
+ALTER TABLE employees SET TBLPROPERTIES (
+  'quality' = 'silver',
+  'modified_by' = 'devops_pipeline'
 );
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+ALTER TABLE employees RENAME TO employee_master;
