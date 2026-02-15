@@ -1,7 +1,7 @@
 -- ==============================
 -- 1️⃣ CREATE TABLE (Reversible)
 -- ==============================
-CREATE TABLE employee_v2 (
+CREATE TABLE employee_v3 (
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -12,7 +12,7 @@ CREATE TABLE employee_v2 (
 -- ==============================
 -- 2️⃣ INSERT (Not DDL – ignored by rollback logic)
 -- ==============================
-INSERT INTO employee_v2 VALUES
+INSERT INTO employee_v3 VALUES
 (1, 'Amit', 'IT', 70000, current_timestamp()),
 (2, 'Neha', 'HR', 55000, current_timestamp()),
 (3, 'Rohit', 'Finance', 80000, current_timestamp());
@@ -20,12 +20,12 @@ INSERT INTO employee_v2 VALUES
 -- ==============================
 -- 3️⃣ ALTER – ADD COLUMN (Reversible)
 -- ==============================
-ALTER TABLE employee_v2 ADD COLUMN email STRING;
+ALTER TABLE employee_v3 ADD COLUMN email STRING;
 
 -- ==============================
 -- 4️⃣ ALTER – SET PROPERTIES (Reversible)
 -- ==============================
-ALTER TABLE employee_v2 SET TBLPROPERTIES (
+ALTER TABLE employee_v3 SET TBLPROPERTIES (
   'quality' = 'silver',
   'modified_by' = 'gitops_pipeline'
 );
@@ -33,9 +33,9 @@ ALTER TABLE employee_v2 SET TBLPROPERTIES (
 -- ==============================
 -- 5️⃣ TRUNCATE (Irreversible)
 -- ==============================
-TRUNCATE TABLE employee_v2;
+TRUNCATE TABLE employee_v3;
 
 -- ==============================
 -- 6️⃣ DROP (Irreversible)
 -- ==============================
-DROP TABLE employee_v2;
+DROP TABLE employee_v3;
