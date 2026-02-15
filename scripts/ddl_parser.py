@@ -41,3 +41,18 @@ def extract_ddls(statements):
             })
 
     return ddl_list
+
+
+#  THIS IS WHAT execute_ddl.py EXPECTS
+def parse_sql_file(file_path):
+    """
+    High-level parser used by pipeline execution stage
+    """
+
+    with open(file_path, "r") as f:
+        sql_text = f.read()
+
+    statements = split_sql_statements(sql_text)
+
+    # Return only executable SQL strings
+    return [s for s in statements]
