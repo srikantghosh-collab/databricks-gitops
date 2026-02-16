@@ -255,7 +255,7 @@ stages:
           vmImage: ubuntu-latest
         steps:
           - checkout: self
-            fetchdepth: 0
+            fetchDepth: 0
 
           - task: UsePythonVersion@0
             inputs:
