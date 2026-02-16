@@ -2,8 +2,8 @@ import re
 
 def split_sql_statements(sql_text):
     """
-    Splits SQL file into individual statements safely.
-    Handles multi-line statements.
+    Split SQL file into individual statements using semicolon.
+    Handles multi-line DDLs safely.
     """
 
     statements = []
@@ -12,47 +12,66 @@ def split_sql_statements(sql_text):
     for line in sql_text.splitlines():
         line = line.strip()
 
+        # Skip comments & empty lines
         if not line or line.startswith("--"):
             continue
 
         buffer += " " + line
 
         if line.endswith(";"):
-            statements.append(buffer.strip())
+            statements.append(buffer.strip().rstrip(";"))
             buffer = ""
 
-    if buffer:
+    if buffer.strip():
         statements.append(buffer.strip())
 
     return statements
 
 
 def extract_ddls(statements):
-    ddl_list = []
+    """
+    Extract DDL statements with metadata
+    """
+
+    ddls = []
+    counter = 1
 
     for stmt in statements:
         stmt_upper = stmt.upper()
 
-        if stmt_upper.startswith(("CREATE", "ALTER", "DROP")):
-            ddl_list.append({
+        if stmt_upper.startswith(("CREATE", "ALTER", "DROP", "TRUNCATE")):
+
+            table = extract_table_name(stmt_upper)
+
+            ddls.append({
+                "id": f"ddl_{counter}",
                 "statement": stmt,
                 "type": stmt_upper.split()[0],
-                "classification": None
+                "table": table
             })
 
-    return ddl_list
+            counter += 1
+
+    return ddls
 
 
-#  THIS IS WHAT execute_ddl.py EXPECTS
-def parse_sql_file(file_path):
+def extract_table_name(stmt_upper):
     """
-    High-level parser used by pipeline execution stage
+    Extract table name from DDL
     """
 
-    with open(file_path, "r") as f:
-        sql_text = f.read()
+    patterns = [
+        r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([^\s(]+)",
+        r"CREATE\s+TABLE\s+([^\s(]+)",
+        r"ALTER\s+TABLE\s+([^\s]+)",
+        r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s]+)",
+        r"DROP\s+TABLE\s+([^\s]+)",
+        r"TRUNCATE\s+TABLE\s+([^\s]+)"
+    ]
 
-    statements = split_sql_statements(sql_text)
+    for pattern in patterns:
+        match = re.search(pattern, stmt_upper)
+        if match:
+            return match.group(1)
 
-    # Return only executable SQL strings
-    return [s for s in statements]
+    return None

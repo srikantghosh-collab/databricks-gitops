@@ -63,9 +63,9 @@ for ddl_sql in statements:
         print("\nExecuting DDL:")
         print(ddl_sql)
 
-        # ---------------------------------
+        
         # Detect risky operations
-        # ---------------------------------
+        
         if ddl_upper.startswith(("DROP TABLE", "TRUNCATE", "ALTER TABLE")):
 
             # Safe table name extraction
@@ -133,7 +133,7 @@ for ddl_sql in statements:
         print("Audit log recorded: FAILED")
 
         print("DDL execution failed:", error_msg)
-        break   # 🔥 FAIL FAST
+        break   #  FAIL FAST
 
 # ----------------------------
 # Cleanup

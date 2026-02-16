@@ -3,97 +3,78 @@ import os
 import sys
 from openai import AzureOpenAI
 
-print("AI Classification Stage Starting...")
+print("🤖 AI DDL Classification Started")
 
 if not os.path.exists("ddl_output.json"):
-    print("No ddl_output.json found — skipping")
+    print("No ddl_output.json found")
     sys.exit(0)
 
-with open("ddl_output.json", "r") as f:
+with open("ddl_output.json") as f:
     data = json.load(f)
 
 ddls = data.get("ddls", [])
 
 if not ddls:
-    print("No DDL found — skipping")
+    print("No DDLs to classify")
     sys.exit(0)
 
-client = None
+client = AzureOpenAI(
+    api_key=os.environ["AZURE_OPENAI_KEY"],
+    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+    api_version="2024-02-15-preview"
+)
 
-# Try to initialize Azure OpenAI
-try:
-    client = AzureOpenAI(
-        api_key=os.environ["AZURE_OPENAI_KEY"],
-        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-        api_version="2024-02-15-preview"
-    )
-except Exception as e:
-    print("AI client init failed — fallback mode:", e)
+drop_detected = False
 
+for ddl in ddls:
+    stmt = ddl["statement"]
 
-final_is_drop = False
+    prompt = f"""
+You are a database safety expert.
 
-for ddl_obj in ddls:
+Classify the following SQL DDL as:
+- reversible
+- irreversible
 
-    ddl_stmt = ddl_obj["statement"]
-    ddl_type = ddl_obj["type"]
-
-    print("Classifying:", ddl_stmt)
-
-    classification = None
-
-    # Try AI if available
-    if client:
-        try:
-            prompt = f"""
-You are a SQL safety analyzer.
-
-Classify this DDL statement:
-
-{ddl_stmt}
+DDL:
+{stmt}
 
 Return ONLY JSON:
-
-{{ "classification": "reversible" }}
-or
-{{ "classification": "irreversible" }}
+{{ "classification": "reversible" }} OR {{ "classification": "irreversible" }}
 """
 
-            response = client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0
-            )
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0
+        )
 
-            result = json.loads(response.choices[0].message.content)
-            classification = result["classification"].strip().lower()
+        result = json.loads(response.choices[0].message.content)
+        classification = result["classification"].lower()
 
-        except Exception as e:
-            print("AI failed — fallback rule used:", e)
-
-    # Fallback rule
-    if not classification:
+    except Exception as e:
+        print("⚠ AI failed, using fallback:", e)
         classification = (
             "irreversible"
-            if ddl_type == "DROP"
+            if ddl["type"] in ("DROP", "TRUNCATE")
             else "reversible"
         )
 
-    ddl_obj["classification"] = classification
-
-    print("→ Classified as:", classification)
+    ddl["classification"] = classification
 
     if classification == "irreversible":
-        final_is_drop = True
+        drop_detected = True
 
+    print(f"DDL [{ddl['id']}] → {classification}")
 
-# Update artifact with classification
+# Update global IS_DROP
+data["is_drop"] = drop_detected
+
 with open("ddl_output.json", "w") as f:
     json.dump(data, f, indent=2)
 
-
-print("FINAL IS_DROP VALUE:", final_is_drop)
-
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(final_is_drop).lower()}")
+print("FINAL IS_DROP:", drop_detected)
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(drop_detected).lower()}")
 
 print("AI Classification Complete")

@@ -1,7 +1,5 @@
--- ==============================
--- 1️⃣ CREATE TABLE (Reversible)
--- ==============================
-CREATE TABLE employee_v3 (
+
+CREATE TABLE employee_v4 (
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -9,33 +7,20 @@ CREATE TABLE employee_v3 (
     created_date TIMESTAMP
 ) USING DELTA;
 
--- ==============================
--- 2️⃣ INSERT (Not DDL – ignored by rollback logic)
--- ==============================
-INSERT INTO employee_v3 VALUES
+INSERT INTO employee_v4 VALUES
 (1, 'Amit', 'IT', 70000, current_timestamp()),
 (2, 'Neha', 'HR', 55000, current_timestamp()),
 (3, 'Rohit', 'Finance', 80000, current_timestamp());
 
--- ==============================
--- 3️⃣ ALTER – ADD COLUMN (Reversible)
--- ==============================
-ALTER TABLE employee_v3 ADD COLUMN email STRING;
 
--- ==============================
--- 4️⃣ ALTER – SET PROPERTIES (Reversible)
--- ==============================
-ALTER TABLE employee_v3 SET TBLPROPERTIES (
+ALTER TABLE employee_v4 ADD COLUMN email STRING;
+
+
+ALTER TABLE employee_v4 SET TBLPROPERTIES (
   'quality' = 'silver',
   'modified_by' = 'gitops_pipeline'
 );
 
--- ==============================
--- 5️⃣ TRUNCATE (Irreversible)
--- ==============================
-TRUNCATE TABLE employee_v3;
+TRUNCATE TABLE employee_v4;
 
--- ==============================
--- 6️⃣ DROP (Irreversible)
--- ==============================
-DROP TABLE employee_v3;
+DROP TABLE employee_v4;

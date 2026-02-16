@@ -4,99 +4,148 @@ import sys
 import os
 import re
 
-print("Detecting DDL changes...")
+print("🔍 Detecting DDL changes...")
 
 DDL_FILE = "ddl/orders.sql"
 
-output_path = os.path.join(
+OUTPUT_PATH = os.path.join(
     os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
     "ddl_output.json"
 )
 
-# If SQL file does not exist
-if not os.path.exists(DDL_FILE):
-    print("No SQL file found")
+# ----------------------------------
+# Helper: split SQL into statements
+# ----------------------------------
 
-    with open(output_path, "w") as f:
-        json.dump({"ddls": [], "is_drop": False}, f, indent=2)
-
-    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
-    sys.exit(0)
-
-
-# Read full SQL file
-with open(DDL_FILE, "r") as f:
-    sql_text = f.read()
-
-
-# Split SQL statements safely
-def split_sql_statements(sql):
+def split_sql_statements(sql_text):
     statements = []
     buffer = ""
 
-    for line in sql.splitlines():
+    for line in sql_text.splitlines():
         line = line.strip()
 
+        # Skip comments & empty lines
         if not line or line.startswith("--"):
             continue
 
         buffer += " " + line
 
-        if ";" in line:
-            statements.append(buffer.strip())
+        if line.endswith(";"):
+            statements.append(buffer.strip().rstrip(";"))
             buffer = ""
 
-    if buffer:
+    if buffer.strip():
         statements.append(buffer.strip())
 
     return statements
 
 
-statements = split_sql_statements(sql_text)
+# ----------------------------------
+# Helper: extract table name
+# ----------------------------------
 
-ddl_list = []
+def extract_table_name(stmt_upper):
+    patterns = [
+        r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([^\s(]+)",
+        r"CREATE\s+TABLE\s+([^\s(]+)",
+        r"ALTER\s+TABLE\s+([^\s]+)",
+        r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s]+)",
+        r"DROP\s+TABLE\s+([^\s]+)",
+        r"TRUNCATE\s+TABLE\s+([^\s]+)"
+    ]
 
-for stmt in statements:
-    stmt_upper = stmt.upper()
+    for pattern in patterns:
+        match = re.search(pattern, stmt_upper)
+        if match:
+            return match.group(1)
 
-    if stmt_upper.startswith(("CREATE", "ALTER", "DROP")):
-        ddl_list.append({
-            "statement": stmt,
-            "type": stmt_upper.split()[0]
-        })
+    return None
 
 
-# No DDL found
-if not ddl_list:
-    print("No executable DDL found")
+# ----------------------------------
+# Step 1: Validate SQL file
+# ----------------------------------
 
-    with open(output_path, "w") as f:
+if not os.path.exists(DDL_FILE):
+    print("⚠ No DDL SQL file found")
+
+    with open(OUTPUT_PATH, "w") as f:
         json.dump({"ddls": [], "is_drop": False}, f, indent=2)
 
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     sys.exit(0)
 
 
-# Check if any DROP exists
-is_drop = any(d["type"] == "DROP" for d in ddl_list)
+# ----------------------------------
+# Step 2: Read & parse SQL
+# ----------------------------------
+
+with open(DDL_FILE, "r") as f:
+    sql_text = f.read()
+
+statements = split_sql_statements(sql_text)
+
+ddls = []
+counter = 1
+
+for stmt in statements:
+    stmt_upper = stmt.upper()
+
+    if stmt_upper.startswith(("CREATE", "ALTER", "DROP", "TRUNCATE")):
+        ddls.append({
+            "id": f"ddl_{counter}",
+            "statement": stmt,
+            "type": stmt_upper.split()[0],
+            "table": extract_table_name(stmt_upper)
+        })
+        counter += 1
 
 
-# Write artifact
-with open(output_path, "w") as f:
+# ----------------------------------
+# Step 3: No DDL case
+# ----------------------------------
+
+if not ddls:
+    print("ℹ No executable DDL found")
+
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump({"ddls": [], "is_drop": False}, f, indent=2)
+
+    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
+    sys.exit(0)
+
+
+# ----------------------------------
+# Step 4: Detect DROP presence
+# ----------------------------------
+
+is_drop = any(d["type"] in ("DROP", "TRUNCATE") for d in ddls)
+
+commit_id = subprocess.check_output(
+    ["git", "rev-parse", "HEAD"],
+    text=True
+).strip()
+
+
+# ----------------------------------
+# Step 5: Write artifact
+# ----------------------------------
+
+with open(OUTPUT_PATH, "w") as f:
     json.dump(
         {
-            "commit_id": subprocess.check_output(
-                ["git", "rev-parse", "HEAD"],
-                text=True
-            ).strip(),
-            "ddls": ddl_list,
+            "commit_id": commit_id,
+            "file": DDL_FILE,
+            "ddls": ddls,
             "is_drop": is_drop
         },
         f,
-        indent=2,
+        indent=2
     )
 
-print(f"{len(ddl_list)} DDL statements detected")
-print("IS_DROP:", is_drop)
+print(f"✅ {len(ddls)} DDL statement(s) detected")
+for d in ddls:
+    print(f" - [{d['type']}] {d['statement']}")
 
+print("IS_DROP:", is_drop)
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
