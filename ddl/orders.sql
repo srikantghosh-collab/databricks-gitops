@@ -7,7 +7,7 @@ CREATE TABLE employee_v6 (
     created_date TIMESTAMP
  ) USING DELTA;
 
- INSERT INTO employee_v5 VALUES
+ INSERT INTO employee_v6 VALUES
  (1, 'Amit', 'IT', 70000, current_timestamp()),
  (2, 'Neha', 'HR', 55000, current_timestamp()),
  (3, 'Rohit', 'Finance', 80000, current_timestamp());
