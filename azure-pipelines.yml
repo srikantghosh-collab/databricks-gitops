@@ -1,5 +1,5 @@
 trigger:
-- main
+  - main
 
 variables:
   PYTHON_VERSION: '3.10'
@@ -11,33 +11,33 @@ stages:
   - stage: Detect
     displayName: "Detect DDL Changes"
     jobs:
-    - job: detect
-      displayName: "Detection Job"
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-      - checkout: self
-        fetchDepth: 0
+      - job: detect
+        displayName: "Detection Job"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
+            fetchDepth: 0
 
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: $(PYTHON_VERSION)
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
 
-      - script: |
-          python scripts/detect_ddl.py
-        name: detectddl
-        displayName: "Detect DDL"
+          - script: |
+              python scripts/detect_ddl.py
+            name: detectddl
+            displayName: "Detect DDL"
 
-      - script: |
-          python scripts/detect_revert.py
-        name: detectrevert
-        displayName: "Detect Git Revert"
+          - script: |
+              python scripts/detect_revert.py
+            name: detectrevert
+            displayName: "Detect Git Revert"
 
-      - task: PublishPipelineArtifact@1
-        inputs:
-          targetPath: 'ddl_output.json'
-          artifact: 'ddlartifact'
-        displayName: "Publish DDL Artifact"
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: 'ddl_output.json'
+              artifact: 'ddlartifact'
+            displayName: "Publish DDL Artifact"
 
 
   # ======================
@@ -47,35 +47,35 @@ stages:
     displayName: "AI DDL Classification"
     dependsOn: Detect
     jobs:
-    - job: ai
-      displayName: "AI Job"
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-      - checkout: self
+      - job: ai
+        displayName: "AI Job"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: ddlartifact
-          path: .
-        displayName: "Download DDL Artifact"
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
+            displayName: "Download DDL Artifact"
 
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: $(PYTHON_VERSION)
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
 
-      - script: |
-          python -m pip install "openai>=1.30.0"
-        displayName: "Install Azure OpenAI SDK"
+          - script: |
+              python -m pip install "openai>=1.30.0"
+            displayName: "Install Azure OpenAI SDK"
 
-      - script: |
-          python scripts/classify_ddl_ai.py
-        name: SetOutput
-        displayName: "Run AI Classification"
-        env:
-          AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
-          AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
-          AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+          - script: |
+              python scripts/classify_ddl_ai.py
+            name: SetOutput
+            displayName: "Run AI Classification"
+            env:
+              AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+              AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+              AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
 
   # ======================
@@ -85,30 +85,30 @@ stages:
     displayName: "Generate Rollback Script"
     dependsOn: AI
     jobs:
-    - job: rollback
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-      - checkout: self
+      - job: rollback
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: ddlartifact
-          path: .
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
 
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: $(PYTHON_VERSION)
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
 
-      - script: |
-          python scripts/rollback_generator.py
-        displayName: "Generate Rollback"
+          - script: |
+              python scripts/rollback_generator.py
+            displayName: "Generate Rollback"
 
-      - task: PublishPipelineArtifact@1
-        inputs:
-         targetPath: rollback_plan.json
-         artifact: rollback-plan
-        displayName: "Publish Rollback Plan"
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: 'rollback_plan.json'
+              artifact: 'rollback-plan'
+            displayName: "Publish Rollback Plan"
 
 
 
@@ -124,13 +124,13 @@ stages:
         eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'true')
       )
     jobs:
-    - job: approval
-      pool: server
-      steps:
-      - task: ManualValidation@0
-        inputs:
-          instructions: "DROP / destructive DDL detected. Approve to continue."
-          timeoutInMinutes: 1440
+      - job: approval
+        pool: server
+        steps:
+          - task: ManualValidation@0
+            inputs:
+              instructions: "DROP / destructive DDL detected. Approve to continue."
+              timeoutInMinutes: 1440
 
 
   # ======================
@@ -153,51 +153,51 @@ stages:
       )
 
     jobs:
-    - job: execute
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-      - checkout: self
+      - job: execute
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
 
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: ddlartifact
-          path: .
-        displayName: "Download DDL Artifact"
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
+            displayName: "Download DDL Artifact"
 
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: $(PYTHON_VERSION)
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
 
-      - script: |
-          python -m pip install --upgrade pip
-          python -m pip install databricks-sql-connector
-        displayName: "Install Databricks SQL Connector"
+          - script: |
+              python -m pip install --upgrade pip
+              python -m pip install databricks-sql-connector
+            displayName: "Install Databricks SQL Connector"
 
-      - script: |
-          python scripts/execute_ddl.py
-        displayName: "Execute DDL"
-        env:
-          DATABRICKS_HOST: $(Databricks_Host)
-          DATABRICKS_TOKEN: $(Databricks_Token)
-          DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+          - script: |
+              python scripts/execute_ddl.py
+            displayName: "Execute DDL"
+            env:
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
-      #  metadata check MUST be in same job
-      - script: |
-          if [ -f rollback_metadata.json ]; then
-            echo "##vso[task.setvariable variable=HAS_METADATA]true"
-          else
-            echo "##vso[task.setvariable variable=HAS_METADATA]false"
-          fi
-        displayName: "Check Rollback Metadata"
+          # metadata check MUST be in same job
+          - script: |
+              if [ -f rollback_metadata.json ]; then
+                echo "##vso[task.setvariable variable=HAS_METADATA]true"
+              else
+                echo "##vso[task.setvariable variable=HAS_METADATA]false"
+              fi
+            displayName: "Check Rollback Metadata"
 
-      #  publish metadata as pipeline artifact
-      - task: PublishPipelineArtifact@1
-        condition: eq(variables.HAS_METADATA, 'true')
-        inputs:
-          targetPath: rollback_metadata.json
-          artifact: rollbackmeta
-        displayName: "Publish Rollback Metadata"
+          # publish metadata as pipeline artifact
+          - task: PublishPipelineArtifact@1
+            condition: eq(variables.HAS_METADATA, 'true')
+            inputs:
+              targetPath: 'rollback_metadata.json'
+              artifact: 'rollbackmeta'
+            displayName: "Publish Rollback Metadata"
 
 
   # ======================
@@ -208,25 +208,25 @@ stages:
     dependsOn: Execute
     condition: succeeded('Execute')
     jobs:
-    - job: reconcile
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-      - checkout: self
+      - job: reconcile
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
 
-      - task: UsePythonVersion@0
-        inputs:
-          versionSpec: $(PYTHON_VERSION)
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
 
-      - script: |
-          pip install databricks-sql-connector pyyaml
-          python scripts/reconcile_schema.py
-        displayName: "Run Reconciliation"
-        env:
-          AUTO_FIX: "false"
-          DATABRICKS_HOST: $(Databricks_Host)
-          DATABRICKS_TOKEN: $(Databricks_Token)
-          DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+          - script: |
+              pip install databricks-sql-connector pyyaml
+              python scripts/reconcile_schema.py
+            displayName: "Run Reconciliation"
+            env:
+              AUTO_FIX: "false"
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
 
   # ======================
@@ -236,50 +236,48 @@ stages:
     displayName: "Auto Rollback from Backup"
     dependsOn: Detect
     condition: |
-     and(
-      succeeded(),
-      eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
-     )
+      and(
+        succeeded(),
+        eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
+      )
 
     jobs:
-    - job: rollback
-      displayName: "Rollback Job"
-      pool:
-       vmImage: ubuntu-latest
+      - job: rollback
+        displayName: "Rollback Job"
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: self
 
-      steps:
-      - checkout: self
+          #  Download rollback metadata ONLY if it exists
+          - task: DownloadPipelineArtifact@2
+            continueOnError: true
+            inputs:
+              project: '$(System.TeamProject)'
+              definition: '$(System.DefinitionId)'
+              buildVersionToDownload: 'latest'
+              artifact: 'rollbackmeta'
+              path: .
+            displayName: "Download Rollback Metadata (if exists)"
 
-    # 🔹 Download rollback metadata ONLY if it exists
-      - task: DownloadPipelineArtifact@2
-        continueOnError: true
-        inputs:
-         buildType: 'specific'
-         project: '$(System.TeamProject)'
-         definition: '$(System.DefinitionId)'
-         buildVersionToDownload: 'latest'
-         artifact: rollbackmeta
-          path: .
-        displayName: "Download Rollback Metadata (if exists)"
+          - task: UsePythonVersion@0
+            inputs:
+              versionSpec: $(PYTHON_VERSION)
 
-      - task: UsePythonVersion@0
-        inputs:
-         versionSpec: $(PYTHON_VERSION)
+          - script: |
+              python -m pip install databricks-sql-connector
+            displayName: "Install Databricks Connector"
 
-      - script: |
-         python -m pip install databricks-sql-connector
-        displayName: "Install Databricks Connector"
-
-      - script: |
-         if [ -f rollback_metadata.json ]; then
-           echo "Rollback metadata found — restoring table"
-           python scripts/restore_from_backup.py
-         else
-          echo "No rollback metadata found — skipping restore safely"
-         fi
-        displayName: "Restore from Backup"
-        env:
-         DATABRICKS_HOST: $(Databricks_Host)
-         DATABRICKS_TOKEN: $(Databricks_Token)
-         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+          - script: |
+              if [ -f rollback_metadata.json ]; then
+                echo "Rollback metadata found — restoring table"
+                python scripts/restore_from_backup.py
+              else
+                echo "No rollback metadata found — skipping restore safely"
+              fi
+            displayName: "Restore from Backup"
+            env:
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
