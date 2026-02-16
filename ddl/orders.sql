@@ -21,6 +21,4 @@ ALTER TABLE employee_v4 SET TBLPROPERTIES (
   'modified_by' = 'gitops_pipeline'
 );
 
-TRUNCATE TABLE employee_v4;
 
-DROP TABLE employee_v4;
