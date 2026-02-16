@@ -255,6 +255,7 @@ stages:
           vmImage: ubuntu-latest
         steps:
           - checkout: self
+            fetchdepth: 0
 
           - task: UsePythonVersion@0
             inputs:
@@ -269,9 +270,10 @@ stages:
             displayName: "Fetch rollback metadata"
             env:
               AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
+              AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
               AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
               REVERT_COMMIT: $(dependencies.Detect.outputs['detect.detectrevert.REVERT_COMMIT'])
-              TABLE_NAME: employee_v9
+              
 
           - script: |
               python scripts/restore_from_backup.py
