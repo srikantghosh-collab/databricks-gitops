@@ -241,7 +241,7 @@ stages:
       eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
      )
 
-   jobs:
+    jobs:
     - job: rollback
       displayName: "Rollback Job"
       pool:
@@ -258,7 +258,7 @@ stages:
          project: '$(System.TeamProject)'
          definition: '$(System.DefinitionId)'
          buildVersionToDownload: 'latest'
-        artifact: rollbackmeta
+         artifact: rollbackmeta
           path: .
         displayName: "Download Rollback Metadata (if exists)"
 
