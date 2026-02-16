@@ -172,7 +172,8 @@ stages:
           - script: |
               python -m pip install --upgrade pip
               python -m pip install databricks-sql-connector
-            displayName: "Install Databricks SQL Connector"
+              python -m pip install azure-storage-blob
+            displayName: "Install Databricks + Azure Blob SDK"
 
           - script: |
               python scripts/execute_ddl.py
