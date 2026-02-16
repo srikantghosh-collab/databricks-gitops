@@ -253,6 +253,10 @@ stages:
       - job: rollback
         pool:
           vmImage: ubuntu-latest
+
+        variables: 
+           REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
+
         steps:
           - checkout: self
             fetchDepth: 0
@@ -274,7 +278,7 @@ stages:
               AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
               AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
               AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-              REVERT_COMMIT: ${{ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] }}
+              REVERT_COMMIT: $(REVERT_COMMIT)
        
 
           - script: |
