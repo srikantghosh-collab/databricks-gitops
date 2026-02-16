@@ -88,7 +88,10 @@ for ddl_sql in statements:
                     ["python", "scripts/backup_before_drop.py"],
                     env={**os.environ, "DDL_TABLE_NAME": table_name},
                 )
-
+                subprocess.check_call(
+                    ["python", "scripts/upload_rollback_metadata.py"],
+                    env={**os.environ, "COMMIT_ID": commit_id},
+                )
                 backed_up_tables.add(table_name)
 
             # Explicit warning for TRUNCATE

@@ -1,26 +1,21 @@
-import json
 import os
-from azure.storage.blob import BlobServiceClient
+import subprocess
+from azure.storage.blob import BlobClient
 
-ACCOUNT_URL = os.environ["AZURE_BLOB_ACCOUNT_URL"]
-SAS_TOKEN = os.environ["AZURE_BLOB_SAS"]
-CONTAINER = "rollback-metadata"
+commit_id = subprocess.check_output(
+    ["git", "rev-parse", "HEAD~1"], text=True
+).strip()
 
-table = os.environ["TABLE_NAME"]
-commit = os.environ["REVERT_COMMIT"]
-
-blob_path = f"{table}/{commit}.json"
-
-client = BlobServiceClient(
-    account_url=ACCOUNT_URL,
-    credential=SAS_TOKEN
+blob = BlobClient(
+    account_url=os.environ["AZURE_BLOB_ACCOUNT_URL"],
+    container_name=os.environ["AZURE_BLOB_CONTAINER"],
+    blob_name=f"{commit_id}.json",
+    credential=os.environ["AZURE_BLOB_SAS"]
 )
-
-blob = client.get_blob_client(container=CONTAINER, blob=blob_path)
 
 data = blob.download_blob().readall()
 
 with open("rollback_metadata.json", "wb") as f:
     f.write(data)
 
-print("Rollback metadata downloaded successfully")
+print(f"Rollback metadata fetched for commit {commit_id}")

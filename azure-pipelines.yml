@@ -233,7 +233,7 @@ stages:
   # STAGE 7: AUTO ROLLBACK (GIT REVERT)
   # ======================
   - stage: AutoRollback
-    displayName: "Auto Rollback from Backup (Phase-2)"
+    displayName: "Auto Rollback from Backup "
     dependsOn: Detect
     condition: |
      and(
