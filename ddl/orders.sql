@@ -1,5 +1,5 @@
 
-CREATE TABLE employee_v5 (
+'''CREATE TABLE employee_v5 (
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -19,6 +19,6 @@ ALTER TABLE employee_v5 ADD COLUMN email STRING;
 ALTER TABLE employee_v5 SET TBLPROPERTIES (
   'quality' = 'silver',
   'modified_by' = 'gitops_pipeline'
-);
+);'''
 
-
+DROP TABLE IF EXISTS employee_v5;
