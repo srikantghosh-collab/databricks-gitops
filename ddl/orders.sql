@@ -1,5 +1,5 @@
 
-CREATE TABLE employee_v9 (
+CREATE TABLE employee_v10 (
     emp_id INT,
     emp_name STRING,
     department STRING,

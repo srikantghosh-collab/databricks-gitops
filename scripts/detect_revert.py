@@ -1,16 +1,23 @@
 import subprocess
-import re
+import sys
 
-def git(cmd):
-    return subprocess.check_output(cmd, text=True).strip()
+try:
+    msg = subprocess.check_output(
+        ["git", "log", "-1", "--pretty=%B"],
+        text=True
+    )
+except:
+    print("##vso[task.setvariable variable=IS_REVERT;isOutput=true]false")
+    sys.exit(0)
 
-msg = git(["git", "log", "-1", "--pretty=%B"])
+if msg.startswith("Revert"):
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "HEAD~1"],
+        text=True
+    ).strip()
 
-# Real git revert detection
-is_revert = bool(re.match(r'^Revert "', msg))
-
-print("Commit message:", msg)
-print("Is revert:", is_revert)
-
-print(f"##vso[task.setvariable variable=IS_REVERT;isOutput=true]{str(is_revert).lower()}")
-
+    print("Git revert detected")
+    print(f"##vso[task.setvariable variable=IS_REVERT;isOutput=true]true")
+    print(f"##vso[task.setvariable variable=REVERT_COMMIT;isOutput=true]{commit}")
+else:
+    print("##vso[task.setvariable variable=IS_REVERT;isOutput=true]false")
