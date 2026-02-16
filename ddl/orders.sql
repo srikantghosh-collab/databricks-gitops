@@ -21,4 +21,4 @@
 --   'modified_by' = 'gitops_pipeline'
 -- );'''
 
-DROP TABLE IF EXISTS employee_v5;
+DROP TABLE  employee_v5;

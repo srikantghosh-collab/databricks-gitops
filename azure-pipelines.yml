@@ -106,9 +106,10 @@ stages:
 
       - task: PublishPipelineArtifact@1
         inputs:
-          targetPath: rollback.sql
-          artifact: rollbackartifact
-        displayName: "Publish Rollback Script"
+         targetPath: rollback_plan.json
+         artifact: rollback-plan
+        displayName: "Publish Rollback Plan"
+
 
 
   # ======================
