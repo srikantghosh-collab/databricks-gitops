@@ -236,41 +236,50 @@ stages:
     displayName: "Auto Rollback from Backup"
     dependsOn: Detect
     condition: |
-      and(
-        succeeded(),
-        eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
-      )
+     and(
+      succeeded(),
+      eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
+     )
 
-    jobs:
+   jobs:
     - job: rollback
+      displayName: "Rollback Job"
       pool:
-        vmImage: ubuntu-latest
+       vmImage: ubuntu-latest
+
       steps:
       - checkout: self
 
-      # download rollback metadata artifact
+    # 🔹 Download rollback metadata ONLY if it exists
       - task: DownloadPipelineArtifact@2
+        continueOnError: true
         inputs:
-          artifact: rollbackmeta
+         buildType: 'specific'
+         project: '$(System.TeamProject)'
+         definition: '$(System.DefinitionId)'
+         buildVersionToDownload: 'latest'
+        artifact: rollbackmeta
           path: .
-        displayName: "Download Rollback Metadata"
+        displayName: "Download Rollback Metadata (if exists)"
 
       - task: UsePythonVersion@0
         inputs:
-          versionSpec: $(PYTHON_VERSION)
+         versionSpec: $(PYTHON_VERSION)
 
       - script: |
-          python -m pip install databricks-sql-connector
+         python -m pip install databricks-sql-connector
         displayName: "Install Databricks Connector"
 
       - script: |
-          if [ -f rollback_metadata.json ]; then
-            python scripts/restore_from_backup.py
-          else
-            echo "No rollback metadata found — skipping restore"
-          fi
+         if [ -f rollback_metadata.json ]; then
+           echo "Rollback metadata found — restoring table"
+           python scripts/restore_from_backup.py
+         else
+          echo "No rollback metadata found — skipping restore safely"
+         fi
         displayName: "Restore from Backup"
         env:
-          DATABRICKS_HOST: $(Databricks_Host)
-          DATABRICKS_TOKEN: $(Databricks_Token)
-          DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+         DATABRICKS_HOST: $(Databricks_Host)
+         DATABRICKS_TOKEN: $(Databricks_Token)
+         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
