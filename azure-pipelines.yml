@@ -246,7 +246,7 @@ stages:
     condition: |
      and(
       succeeded(),
-      eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
+      eq(stageDependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
      )
 
     jobs:
