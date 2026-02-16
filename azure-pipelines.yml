@@ -265,11 +265,6 @@ stages:
               python -m pip install azure-storage-blob databricks-sql-connector
             displayName: "Install dependencies"
 
-          # convert Detect output → pipeline variable
-          - script: |
-              echo "##vso[task.setvariable variable=REVERT_COMMIT]$(stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'])"
-            displayName: "Set revert commit variable"
-
 
           # fetch rollback metadata
           - script: |
@@ -279,9 +274,8 @@ stages:
               AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
               AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
               AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-              REVERT_COMMIT: $(REVERT_COMMIT)
-
-              
+              REVERT_COMMIT: ${{ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] }}
+       
 
           - script: |
               python scripts/restore_from_backup.py
