@@ -1,5 +1,5 @@
 
-CREATE TABLE employee_v22 (
+CREATE TABLE employee_v23 (
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -7,15 +7,15 @@ CREATE TABLE employee_v22 (
     created_date TIMESTAMP
  ) USING DELTA;
 
- INSERT INTO employee_v22 VALUES
+ INSERT INTO employee_v23 VALUES
  (1, 'Amit', 'IT', 70000, current_timestamp()),
  (2, 'Neha', 'HR', 55000, current_timestamp()),
  (3, 'Rohit', 'Finance', 80000, current_timestamp());
 
 
- ALTER TABLE employee_v22 ADD COLUMN email STRING;
+ ALTER TABLE employee_v23 ADD COLUMN email STRING;
 
- ALTER TABLE employee_v22 SET TBLPROPERTIES (
+ ALTER TABLE employee_v23 SET TBLPROPERTIES (
    'quality' = 'silver',
    'modified_by' = 'gitops_pipeline'
  );

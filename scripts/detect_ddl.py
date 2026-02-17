@@ -4,7 +4,7 @@ import sys
 import os
 import re
 
-print("🔍 Detecting DDL changes...")
+print(" Detecting DDL changes...")
 
 DDL_FILE = "ddl/orders.sql"
 
@@ -86,7 +86,7 @@ with open(DDL_FILE, "r") as f:
 statements = split_sql_statements(sql_text)
 
 ddls = []
-counter = 1
+counter = 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
 
 for stmt in statements:
     stmt_upper = stmt.upper()
@@ -101,9 +101,9 @@ for stmt in statements:
         counter += 1
 
 
-# ----------------------------------
+
 # Step 3: No DDL case
-# ----------------------------------
+
 
 if not ddls:
     print("ℹ No executable DDL found")
@@ -115,9 +115,9 @@ if not ddls:
     sys.exit(0)
 
 
-# ----------------------------------
+
 # Step 4: Detect DROP presence
-# ----------------------------------
+
 
 is_drop = any(d["type"] in ("DROP", "TRUNCATE") for d in ddls)
 
@@ -127,9 +127,8 @@ commit_id = subprocess.check_output(
 ).strip()
 
 
-# ----------------------------------
-# Step 5: Write artifact
-# ----------------------------------
+#  Write artifact
+
 
 with open(OUTPUT_PATH, "w") as f:
     json.dump(
@@ -143,7 +142,7 @@ with open(OUTPUT_PATH, "w") as f:
         indent=2
     )
 
-print(f"✅ {len(ddls)} DDL statement(s) detected")
+print(f" {len(ddls)} DDL statement(s) detected")
 for d in ddls:
     print(f" - [{d['type']}] {d['statement']}")
 
