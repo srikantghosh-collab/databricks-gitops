@@ -4,7 +4,7 @@ import sys
 import os
 import re
 
-print(" Detecting DDL changes (diff-based)...")
+print("Detecting DDL changes (diff-based)...")
 
 DDL_FILE = "ddl/orders.sql"
 
@@ -14,10 +14,7 @@ OUTPUT_PATH = os.path.join(
 )
 
 
-
 # Helper: extract added SQL from git diff
-
-
 def get_added_sql_from_diff(file_path):
     try:
         diff = subprocess.check_output(
@@ -35,10 +32,7 @@ def get_added_sql_from_diff(file_path):
     return "\n".join(added_lines)
 
 
-
 # Helper: split SQL into statements
-
-
 def split_sql_statements(sql_text):
     statements = []
     buffer = ""
@@ -63,11 +57,7 @@ def split_sql_statements(sql_text):
     return statements
 
 
-
-
 # Helper: extract table name
-
-
 def extract_table_name(stmt_upper):
     patterns = [
         r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([^\s(]+)",
@@ -86,10 +76,7 @@ def extract_table_name(stmt_upper):
     return None
 
 
-
 # Step 1: Validate SQL file
-
-
 if not os.path.exists(DDL_FILE):
     print("⚠ No DDL SQL file found")
 
@@ -100,10 +87,7 @@ if not os.path.exists(DDL_FILE):
     sys.exit(0)
 
 
-
 # Step 2: Read ONLY added SQL
-
-
 added_sql = get_added_sql_from_diff(DDL_FILE)
 
 if not added_sql.strip():
@@ -134,10 +118,7 @@ for stmt in statements:
         counter += 1
 
 
-# -------------------------
 # Step 3: No DDL case
-# -------------------------
-
 if not ddls:
     print("ℹ No executable DDL found")
 
@@ -148,10 +129,7 @@ if not ddls:
     sys.exit(0)
 
 
-
 # Step 4: Detect DROP presence
-
-
 is_drop = any(d["type"] in ("DROP", "TRUNCATE") for d in ddls)
 
 commit_id = subprocess.check_output(
@@ -160,10 +138,7 @@ commit_id = subprocess.check_output(
 ).strip()
 
 
-    
 # Write artifact
-
-
 with open(OUTPUT_PATH, "w") as f:
     json.dump(
         {
@@ -176,9 +151,9 @@ with open(OUTPUT_PATH, "w") as f:
         indent=2
     )
 
-print(f" {len(ddls)} NEW DDL statement(s) detected")
+print(f"{len(ddls)} NEW DDL statement(s) detected")
 for d in ddls:
-    print(f" - [{d['type']}] {d['statement']}")
+    print(f"- [{d['type']}] {d['statement']}")
 
 print("IS_DROP:", is_drop)
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")

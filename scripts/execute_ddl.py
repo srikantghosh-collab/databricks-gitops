@@ -4,7 +4,7 @@ import subprocess
 import json
 import re
 
-print("Starting DDL execution (DDL-only, diff-based)...")
+print("Starting DDL execution ")
 
 DDL_ARTIFACT = "ddl_output.json"
 
