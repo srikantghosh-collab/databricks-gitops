@@ -17,8 +17,6 @@ ALTER TABLE employee_v32 SET TBLPROPERTIES (
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
 
-ALTER TABLE employee_v32 ADD COLUMNS (email STRING);
-
 -- REQUIRED before any RENAME COLUMN
 ALTER TABLE employee_v32 SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name');
 
