@@ -19,6 +19,9 @@ ALTER TABLE employee_v32 SET TBLPROPERTIES (
 
 ALTER TABLE employee_v32 ADD COLUMNS (email STRING);
 
+-- REQUIRED before any RENAME COLUMN
+ALTER TABLE employee_v32 SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name');
+
 ALTER TABLE employee_v32 RENAME COLUMN emp_name TO full_name;
 
 ALTER TABLE employee_v32 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
