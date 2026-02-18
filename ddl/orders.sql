@@ -12,10 +12,8 @@ CREATE TABLE IF NOT EXISTS employee_v24 (
  (2, 'Neha', 'HR', 55000, current_timestamp()),
  (3, 'Rohit', 'Finance', 80000, current_timestamp());
 
- ALTER TABLE employee_v24 ADD COLUMN email STRING;
+ALTER TABLE employee_v24 DROP COLUMN department;
 
- ALTER TABLE employee_v24 SET TBLPROPERTIES (
-   'quality' = 'silver',
-   'modified_by' = 'gitops_pipeline'
- );
+ALTER TABLE employee_v24 ALTER COLUMN salary TYPE INT;
 
+TRUNCATE TABLE employee_v24;
