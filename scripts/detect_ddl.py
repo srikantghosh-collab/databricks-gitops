@@ -4,7 +4,7 @@ import sys
 import os
 import re
 
-print(" Detecting DDL changes...")
+print(" Detecting DDL changes (diff-based)...")
 
 DDL_FILE = "ddl/orders.sql"
 
@@ -13,9 +13,31 @@ OUTPUT_PATH = os.path.join(
     "ddl_output.json"
 )
 
-# ----------------------------------
+
+
+# Helper: extract added SQL from git diff
+
+
+def get_added_sql_from_diff(file_path):
+    try:
+        diff = subprocess.check_output(
+            ["git", "diff", "HEAD~1", "HEAD", "--", file_path],
+            text=True
+        )
+    except subprocess.CalledProcessError:
+        return ""
+
+    added_lines = []
+    for line in diff.splitlines():
+        if line.startswith("+") and not line.startswith("+++"):
+            added_lines.append(line[1:])
+
+    return "\n".join(added_lines)
+
+
+
 # Helper: split SQL into statements
-# ----------------------------------
+
 
 def split_sql_statements(sql_text):
     statements = []
@@ -24,7 +46,6 @@ def split_sql_statements(sql_text):
     for line in sql_text.splitlines():
         line = line.strip()
 
-        # Skip comments & empty lines
         if not line or line.startswith("--"):
             continue
 
@@ -34,15 +55,12 @@ def split_sql_statements(sql_text):
             statements.append(buffer.strip().rstrip(";"))
             buffer = ""
 
-    if buffer.strip():
-        statements.append(buffer.strip())
-
     return statements
 
 
-# ----------------------------------
+
 # Helper: extract table name
-# ----------------------------------
+
 
 def extract_table_name(stmt_upper):
     patterns = [
@@ -62,9 +80,9 @@ def extract_table_name(stmt_upper):
     return None
 
 
-# ----------------------------------
+
 # Step 1: Validate SQL file
-# ----------------------------------
+
 
 if not os.path.exists(DDL_FILE):
     print("⚠ No DDL SQL file found")
@@ -76,17 +94,26 @@ if not os.path.exists(DDL_FILE):
     sys.exit(0)
 
 
-# ----------------------------------
-# Step 2: Read & parse SQL
-# ----------------------------------
 
-with open(DDL_FILE, "r") as f:
-    sql_text = f.read()
+# Step 2: Read ONLY added SQL
 
-statements = split_sql_statements(sql_text)
+
+added_sql = get_added_sql_from_diff(DDL_FILE)
+
+if not added_sql.strip():
+    print("ℹ No new SQL changes detected")
+
+    with open(OUTPUT_PATH, "w") as f:
+        json.dump({"ddls": [], "is_drop": False}, f, indent=2)
+
+    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
+    sys.exit(0)
+
+
+statements = split_sql_statements(added_sql)
 
 ddls = []
-counter = 1                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             
+counter = 1
 
 for stmt in statements:
     stmt_upper = stmt.upper()
@@ -101,9 +128,9 @@ for stmt in statements:
         counter += 1
 
 
-
+# -------------------------
 # Step 3: No DDL case
-
+# -------------------------
 
 if not ddls:
     print("ℹ No executable DDL found")
@@ -127,7 +154,8 @@ commit_id = subprocess.check_output(
 ).strip()
 
 
-#  Write artifact
+    
+# Write artifact
 
 
 with open(OUTPUT_PATH, "w") as f:
@@ -142,7 +170,7 @@ with open(OUTPUT_PATH, "w") as f:
         indent=2
     )
 
-print(f" {len(ddls)} DDL statement(s) detected")
+print(f" {len(ddls)} NEW DDL statement(s) detected")
 for d in ddls:
     print(f" - [{d['type']}] {d['statement']}")
 

@@ -21,16 +21,16 @@ SET TBLPROPERTIES (
 
 ALTER TABLE employee_v26 DROP COLUMN department;
 
--- 1. Add new column
+
 ALTER TABLE employee_v26 ADD COLUMN salary_int INT;
 
--- 2. Backfill data
+
 UPDATE employee_v26 SET salary_int = CAST(salary AS INT);
 
--- 3. Drop old column
+
 ALTER TABLE employee_v26 DROP COLUMN salary;
 
--- 4. Rename new column
+
 ALTER TABLE employee_v26 RENAME COLUMN salary_int TO salary;
 
 

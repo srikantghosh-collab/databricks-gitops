@@ -57,3 +57,17 @@ tables:
       - name: created_date
         type: TIMESTAMP
       - using: DELTA
+
+  - name: employee_v24
+    schema: default
+    columns:
+      - name: employee_id
+        type: INT
+      - name: employee_name
+        type: STRING
+      - name: department
+        type: STRING
+      - name: salary
+        type: DECIMAL(10, 2)
+      - name: created_date
+        type: TIMESTAMP
