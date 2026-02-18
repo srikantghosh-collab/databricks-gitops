@@ -1,31 +1,33 @@
 from databricks import sql
 import os
 import subprocess
+import json
 import re
-from ddl_parser import split_sql_statements
 
-print("Starting DDL execution...")
+print("Starting DDL execution (DDL-only, diff-based)...")
 
-DDL_FILE = "ddl/orders.sql"
+DDL_ARTIFACT = "ddl_output.json"
 
 # ----------------------------
-# Load & parse SQL file
+# Load DDL artifact
 # ----------------------------
-if not os.path.exists(DDL_FILE):
-    print("DDL file not found — skipping execution")
+if not os.path.exists(DDL_ARTIFACT):
+    print("DDL artifact not found — skipping execution")
     exit(0)
 
-with open(DDL_FILE) as f:
-    statements = split_sql_statements(f.read())
+with open(DDL_ARTIFACT) as f:
+    payload = json.load(f)
 
-if not statements:
-    print("No DDL statements found — nothing to execute")
+ddls = payload.get("ddls", [])
+
+if not ddls:
+    print("No DDL statements to execute — exiting")
     exit(0)
 
 # ----------------------------
 # Git commit for audit
 # ----------------------------
-commit_id = subprocess.check_output(
+commit_id = payload.get("commit_id") or subprocess.check_output(
     ["git", "rev-parse", "HEAD"],
     text=True
 ).strip()
@@ -53,34 +55,41 @@ failed = False
 error_msg = None
 
 # ----------------------------
+# Helper: extract table name safely
+# ----------------------------
+def extract_table_name(ddl_sql: str):
+    patterns = [
+        r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
+        r"DROP\s+TABLE\s+([^\s;]+)",
+        r"TRUNCATE\s+TABLE\s+([^\s;]+)",
+        r"ALTER\s+TABLE\s+([^\s;]+)",
+    ]
+    for p in patterns:
+        m = re.search(p, ddl_sql, re.IGNORECASE)
+        if m:
+            return m.group(1)
+    return None
+
+# ----------------------------
 # Execute DDLs one by one
 # ----------------------------
-for ddl_sql in statements:
-    ddl_sql = ddl_sql.strip()
+for item in ddls:
+    ddl_sql = item["statement"].strip()
     ddl_upper = ddl_sql.upper()
 
     try:
         print("\nExecuting DDL:")
         print(ddl_sql)
 
-        
-        # Detect risky operations
-        
-        if ddl_upper.startswith(("DROP TABLE", "TRUNCATE", "ALTER TABLE")):
+        # ----------------------------
+        # Backup for risky operations
+        # ----------------------------
+        if ddl_upper.startswith(("DROP", "TRUNCATE", "ALTER")):
+            table_name = extract_table_name(ddl_sql)
 
-            # Safe table name extraction
-            match = re.search(
-                r"(TABLE|TABLE IF EXISTS)\s+([^\s;]+)",
-                ddl_sql,
-                re.IGNORECASE
-            )
-
-            if not match:
+            if not table_name:
                 raise Exception("Unable to detect table name safely")
 
-            table_name = match.group(2)
-
-            # Backup only once per table
             if table_name not in backed_up_tables:
                 print(f"Taking backup for table: {table_name}")
 
@@ -88,24 +97,25 @@ for ddl_sql in statements:
                     ["python", "scripts/backup_before_drop.py"],
                     env={**os.environ, "DDL_TABLE_NAME": table_name},
                 )
+
                 subprocess.check_call(
                     ["python", "scripts/upload_rollback_metadata.py"],
                     env={**os.environ, "COMMIT_ID": commit_id},
                 )
+
                 backed_up_tables.add(table_name)
 
-            # Explicit warning for TRUNCATE
             if ddl_upper.startswith("TRUNCATE"):
                 print("⚠ TRUNCATE detected — rollback requires restore from backup")
 
-        # ---------------------------------
+        # ----------------------------
         # Execute DDL
-        # ---------------------------------
+        # ----------------------------
         cursor.execute(ddl_sql)
 
-        # ---------------------------------
+        # ----------------------------
         # Audit SUCCESS
-        # ---------------------------------
+        # ----------------------------
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
               current_timestamp(),
@@ -121,9 +131,9 @@ for ddl_sql in statements:
         failed = True
         error_msg = str(e)
 
-        # ---------------------------------
+        # ----------------------------
         # Audit FAILURE
-        # ---------------------------------
+        # ----------------------------
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
               current_timestamp(),
@@ -134,9 +144,8 @@ for ddl_sql in statements:
             )
         """)
         print("Audit log recorded: FAILED")
-
         print("DDL execution failed:", error_msg)
-        break   #  FAIL FAST
+        break  # FAIL FAST
 
 # ----------------------------
 # Cleanup
