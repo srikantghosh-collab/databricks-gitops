@@ -28,5 +28,9 @@ ALTER TABLE employee_v32 SET TBLPROPERTIES (
     'quality' = 'silver',
     'modified_by' = 'devops_pipeline'
 );
+ALTER TABLE employee_v32 DROP COLUMN department;
 
-ALTER TABLE employee_v32 RENAME TO employee_master;
+ALTER TABLE employee_v32 ALTER COLUMN salary TYPE INT;
+
+DROP TABLE employee_v32;
+
