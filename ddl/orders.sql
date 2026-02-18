@@ -35,3 +35,5 @@ ALTER TABLE employee_v26 RENAME COLUMN salary_int TO salary;
 
 
 TRUNCATE TABLE employee_v26;
+
+ALTER TABLE employee_v26 ADD COLUMN country STRING;
