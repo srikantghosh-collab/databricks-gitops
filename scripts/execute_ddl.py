@@ -25,13 +25,10 @@ if not ddls:
     print("No DDL statements to execute — exiting")
     sys.exit(0)
 
-commit_id = payload.get("commit_id")
-
-if not commit_id:
-    commit_id = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"],
-        text=True
-    ).strip()
+commit_id = payload.get("commit_id") or subprocess.check_output(
+    ["git", "rev-parse", "HEAD"],
+    text=True
+).strip()
 
 # ----------------------------
 # Connect to Databricks
@@ -45,12 +42,12 @@ conn = sql.connect(
 cursor = conn.cursor()
 cursor.execute("USE CATALOG hive_metastore")
 cursor.execute("USE SCHEMA default")
-
 print("Catalog & schema set")
 
-# ----------------------------
-# Helper: extract table name
-# ----------------------------
+# ============================================================
+# 🔹 HELPER FUNCTIONS (ADD HERE — BEFORE EXECUTION LOOP)
+# ============================================================
+
 def extract_table_name(ddl_sql):
     patterns = [
         r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
@@ -58,22 +55,50 @@ def extract_table_name(ddl_sql):
         r"TRUNCATE\s+TABLE\s+([^\s;]+)",
         r"ALTER\s+TABLE\s+([^\s;]+)"
     ]
-    for pattern in patterns:
-        match = re.search(pattern, ddl_sql, re.IGNORECASE)
-        if match:
-            return match.group(1)
+    for p in patterns:
+        m = re.search(p, ddl_sql, re.IGNORECASE)
+        if m:
+            return m.group(1)
     return None
 
-# ----------------------------
-# Execution control
-# ----------------------------
+
+def is_destructive_alter(ddl_upper):
+    destructive_ops = [
+        "DROP COLUMN",
+        "RENAME COLUMN",
+        "ALTER COLUMN",
+        "CHANGE COLUMN"
+    ]
+    return any(op in ddl_upper for op in destructive_ops)
+
+
+def ensure_column_mapping(cursor, table_name):
+    """
+    Auto-enable column mapping mode 'name' if not already enabled
+    Required for RENAME COLUMN in Delta tables
+    """
+    cursor.execute(f"SHOW TBLPROPERTIES {table_name}")
+    props = {row[0]: row[1] for row in cursor.fetchall()}
+
+    if props.get("delta.columnMapping.mode") != "name":
+        print(f"Enabling column mapping for table: {table_name}")
+        cursor.execute(
+            f"ALTER TABLE {table_name} "
+            "SET TBLPROPERTIES ('delta.columnMapping.mode'='name')"
+        )
+
+# ============================================================
+# 🔹 EXECUTION CONTROL
+# ============================================================
+
 backed_up_tables = set()
 failed = False
 error_msg = None
 
-# ----------------------------
-# Execute each DDL
-# ----------------------------
+# ============================================================
+# 🔹 EXECUTE DDL STATEMENTS
+# ============================================================
+
 for item in ddls:
     ddl_sql = item["statement"].strip()
     ddl_upper = ddl_sql.upper()
@@ -82,16 +107,22 @@ for item in ddls:
         print("\nExecuting DDL:")
         print(ddl_sql)
 
-        # ----------------------------
-        # Backup before risky ops
-        # ----------------------------
-        if ddl_upper.startswith(("DROP", "TRUNCATE", "ALTER")):
+        table_name = extract_table_name(ddl_sql)
+        need_backup = False
 
-            table_name = extract_table_name(ddl_sql)
+        # ---------------------------------
+        # Backup logic
+        # ---------------------------------
 
-            if not table_name:
-                raise Exception("Unable to extract table name safely")
+        # DROP / TRUNCATE → always backup
+        if ddl_upper.startswith(("DROP", "TRUNCATE")):
+            need_backup = True
 
+        # ALTER → backup only if destructive
+        elif ddl_upper.startswith("ALTER") and is_destructive_alter(ddl_upper):
+            need_backup = True
+
+        if need_backup and table_name:
             if table_name not in backed_up_tables:
                 print(f"Taking backup for table: {table_name}")
 
@@ -107,17 +138,20 @@ for item in ddls:
 
                 backed_up_tables.add(table_name)
 
-            if ddl_upper.startswith("TRUNCATE"):
-                print("⚠ TRUNCATE detected — rollback requires restore")
+        # ---------------------------------
+        # Auto-enable column mapping before rename
+        # ---------------------------------
+        if "RENAME COLUMN" in ddl_upper and table_name:
+            ensure_column_mapping(cursor, table_name)
 
-        # ----------------------------
+        # ---------------------------------
         # Execute DDL
-        # ----------------------------
+        # ---------------------------------
         cursor.execute(ddl_sql)
 
-        # ----------------------------
+        # ---------------------------------
         # Audit SUCCESS
-        # ----------------------------
+        # ---------------------------------
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
                 current_timestamp(),
