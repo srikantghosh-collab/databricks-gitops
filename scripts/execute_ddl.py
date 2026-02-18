@@ -3,8 +3,9 @@ import os
 import subprocess
 import json
 import re
+import sys
 
-print("Starting DDL execution ")
+print("Starting DDL execution...")
 
 DDL_ARTIFACT = "ddl_output.json"
 
@@ -13,7 +14,7 @@ DDL_ARTIFACT = "ddl_output.json"
 # ----------------------------
 if not os.path.exists(DDL_ARTIFACT):
     print("DDL artifact not found — skipping execution")
-    exit(0)
+    sys.exit(0)
 
 with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
@@ -22,15 +23,15 @@ ddls = payload.get("ddls", [])
 
 if not ddls:
     print("No DDL statements to execute — exiting")
-    exit(0)
+    sys.exit(0)
 
-# ----------------------------
-# Git commit for audit
-# ----------------------------
-commit_id = payload.get("commit_id") or subprocess.check_output(
-    ["git", "rev-parse", "HEAD"],
-    text=True
-).strip()
+commit_id = payload.get("commit_id")
+
+if not commit_id:
+    commit_id = subprocess.check_output(
+        ["git", "rev-parse", "HEAD"],
+        text=True
+    ).strip()
 
 # ----------------------------
 # Connect to Databricks
@@ -48,6 +49,22 @@ cursor.execute("USE SCHEMA default")
 print("Catalog & schema set")
 
 # ----------------------------
+# Helper: extract table name
+# ----------------------------
+def extract_table_name(ddl_sql):
+    patterns = [
+        r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
+        r"DROP\s+TABLE\s+([^\s;]+)",
+        r"TRUNCATE\s+TABLE\s+([^\s;]+)",
+        r"ALTER\s+TABLE\s+([^\s;]+)"
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, ddl_sql, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return None
+
+# ----------------------------
 # Execution control
 # ----------------------------
 backed_up_tables = set()
@@ -55,23 +72,7 @@ failed = False
 error_msg = None
 
 # ----------------------------
-# Helper: extract table name safely
-# ----------------------------
-def extract_table_name(ddl_sql: str):
-    patterns = [
-        r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
-        r"DROP\s+TABLE\s+([^\s;]+)",
-        r"TRUNCATE\s+TABLE\s+([^\s;]+)",
-        r"ALTER\s+TABLE\s+([^\s;]+)",
-    ]
-    for p in patterns:
-        m = re.search(p, ddl_sql, re.IGNORECASE)
-        if m:
-            return m.group(1)
-    return None
-
-# ----------------------------
-# Execute DDLs one by one
+# Execute each DDL
 # ----------------------------
 for item in ddls:
     ddl_sql = item["statement"].strip()
@@ -82,13 +83,14 @@ for item in ddls:
         print(ddl_sql)
 
         # ----------------------------
-        # Backup for risky operations
+        # Backup before risky ops
         # ----------------------------
         if ddl_upper.startswith(("DROP", "TRUNCATE", "ALTER")):
+
             table_name = extract_table_name(ddl_sql)
 
             if not table_name:
-                raise Exception("Unable to detect table name safely")
+                raise Exception("Unable to extract table name safely")
 
             if table_name not in backed_up_tables:
                 print(f"Taking backup for table: {table_name}")
@@ -106,7 +108,7 @@ for item in ddls:
                 backed_up_tables.add(table_name)
 
             if ddl_upper.startswith("TRUNCATE"):
-                print("⚠ TRUNCATE detected — rollback requires restore from backup")
+                print("⚠ TRUNCATE detected — rollback requires restore")
 
         # ----------------------------
         # Execute DDL
@@ -118,11 +120,11 @@ for item in ddls:
         # ----------------------------
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
-              current_timestamp(),
-              '{commit_id}',
-              '{ddl_sql.replace("'", "''")}',
-              'EXECUTE',
-              'SUCCESS'
+                current_timestamp(),
+                '{commit_id}',
+                '{ddl_sql.replace("'", "''")}',
+                'EXECUTE',
+                'SUCCESS'
             )
         """)
         print("Audit log recorded: SUCCESS")
@@ -131,21 +133,18 @@ for item in ddls:
         failed = True
         error_msg = str(e)
 
-        # ----------------------------
-        # Audit FAILURE
-        # ----------------------------
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
-              current_timestamp(),
-              '{commit_id}',
-              '{ddl_sql.replace("'", "''")}',
-              'EXECUTE',
-              'FAILED'
+                current_timestamp(),
+                '{commit_id}',
+                '{ddl_sql.replace("'", "''")}',
+                'EXECUTE',
+                'FAILED'
             )
         """)
         print("Audit log recorded: FAILED")
         print("DDL execution failed:", error_msg)
-        break  # FAIL FAST
+        break  # fail fast
 
 # ----------------------------
 # Cleanup
@@ -156,4 +155,4 @@ conn.close()
 if failed:
     raise Exception(f"DDL execution stopped due to failure: {error_msg}")
 
-print("\nAll DDL statements executed safely")
+print("\nAll DDL statements executed successfully")
