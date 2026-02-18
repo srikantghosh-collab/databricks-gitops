@@ -42,3 +42,18 @@ tables:
         type: INT
       - name: name
         type: STRING
+
+  - name : employee_v23
+    schema: default
+    columns:
+      - name: employee_id
+        type: INT
+      - name: employee_name
+        type: STRING
+      - name: department
+        type: STRING
+      - name: salary
+        type: DECIMAL(10, 2)
+      - name: created_date
+        type: TIMESTAMP
+      - using: DELTA
