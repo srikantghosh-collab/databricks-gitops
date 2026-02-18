@@ -51,11 +51,17 @@ def split_sql_statements(sql_text):
 
         buffer += " " + line
 
-        if line.endswith(";"):
-            statements.append(buffer.strip().rstrip(";"))
-            buffer = ""
+        # detect semicolon anywhere
+        if ";" in line:
+            parts = buffer.split(";")
+            for part in parts[:-1]:
+                stmt = part.strip()
+                if stmt:
+                    statements.append(stmt)
+            buffer = parts[-1]
 
     return statements
+
 
 
 
