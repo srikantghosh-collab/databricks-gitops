@@ -3,7 +3,7 @@ import sys
 import os
 import subprocess
 
-print("Detecting DDL changes (file-based)...")
+print("Detecting DDL changes ")
 
 DDL_FILE = "ddl/orders.sql"
 OUTPUT_PATH = "ddl_output.json"

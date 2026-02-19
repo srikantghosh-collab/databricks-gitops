@@ -9,9 +9,9 @@ print("Starting DDL execution...")
 
 DDL_ARTIFACT = "ddl_output.json"
 
-# ----------------------------
+
 # Load DDL artifact
-# ----------------------------
+
 if not os.path.exists(DDL_ARTIFACT):
     print("DDL artifact not found — skipping execution")
     sys.exit(0)
@@ -30,9 +30,9 @@ commit_id = payload.get("commit_id") or subprocess.check_output(
     text=True
 ).strip()
 
-# ----------------------------
+
 # Connect to Databricks
-# ----------------------------
+
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
@@ -44,9 +44,8 @@ cursor.execute("USE CATALOG hive_metastore")
 cursor.execute("USE SCHEMA default")
 print("Catalog & schema set")
 
-# ============================================================
-# 🔹 HELPER FUNCTIONS (ADD HERE — BEFORE EXECUTION LOOP)
-# ============================================================
+# 🔹 HELPER FUNCTIONS 
+
 
 def extract_table_name(ddl_sql):
     patterns = [
@@ -87,17 +86,17 @@ def ensure_column_mapping(cursor, table_name):
             "SET TBLPROPERTIES ('delta.columnMapping.mode'='name')"
         )
 
-# ============================================================
+
 # 🔹 EXECUTION CONTROL
-# ============================================================
+
 
 backed_up_tables = set()
 failed = False
 error_msg = None
 
-# ============================================================
-# 🔹 EXECUTE DDL STATEMENTS
-# ============================================================
+
+#  EXECUTE DDL STATEMENTS
+
 
 for item in ddls:
     ddl_sql = item["statement"].strip()
@@ -110,9 +109,9 @@ for item in ddls:
         table_name = extract_table_name(ddl_sql)
         need_backup = False
 
-        # ---------------------------------
+        
         # Backup logic
-        # ---------------------------------
+        
 
         # DROP / TRUNCATE → always backup
         if ddl_upper.startswith(("DROP", "TRUNCATE")):
@@ -138,20 +137,20 @@ for item in ddls:
 
                 backed_up_tables.add(table_name)
 
-        # ---------------------------------
+        
         # Auto-enable column mapping before rename
-        # ---------------------------------
+        
         if "RENAME COLUMN" in ddl_upper and table_name:
             ensure_column_mapping(cursor, table_name)
 
-        # ---------------------------------
+        
         # Execute DDL
-        # ---------------------------------
+        
         cursor.execute(ddl_sql)
 
-        # ---------------------------------
+        
         # Audit SUCCESS
-        # ---------------------------------
+        
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
                 current_timestamp(),
@@ -180,9 +179,9 @@ for item in ddls:
         print("DDL execution failed:", error_msg)
         break  # fail fast
 
-# ----------------------------
+
 # Cleanup
-# ----------------------------
+
 cursor.close()
 conn.close()
 
