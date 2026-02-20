@@ -1,6 +1,6 @@
 
-DESCRIBE HISTORY employee_v37;
-CREATE TABLE IF NOT EXISTS employee_v36(
+DESCRIBE HISTORY employee_v3;
+CREATE TABLE IF NOT EXISTS employee_v38(
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -9,15 +9,15 @@ CREATE TABLE IF NOT EXISTS employee_v36(
 )
 USING DELTA;
 
-INSERT INTO employee_v37 VALUES
+INSERT INTO employee_v38 VALUES
     (1, 'John', 'IT', 60000, current_timestamp()),
     (2, 'Sara', 'HR', 50000, current_timestamp()),
     (3, 'Mike', 'Finance', 70000, current_timestamp());
 
-ALTER TABLE employee_v37 SET TBLPROPERTIES (
+ALTER TABLE employee_v38 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
 
-ALTER TABLE employee_v37
+ALTER TABLE employee_v38
 CHANGE COLUMN salary salary DECIMAL(14,2);

@@ -65,7 +65,11 @@ for item in ddls:
     rollback_lines.append(rollback_sql)
     rollback_lines.append("")
 
-rollback_filename = f"rollback_{commit_id}.sql"
+rollback_filename = os.path.join(
+    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
+    f"rollback_{commit_id}.sql"
+)
+
 
 with open(rollback_filename, "w") as f:
     f.write("\n".join(rollback_lines))

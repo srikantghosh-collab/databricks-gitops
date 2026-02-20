@@ -114,7 +114,7 @@ stages:
 
         - task: PublishPipelineArtifact@1
           inputs:
-            targetPath: rollback_*.sql
+            targetPath: $(System.DefaultWorkingDirectory)
             artifact: rollback-sql
           displayName: "Publish Rollback SQL"
 
