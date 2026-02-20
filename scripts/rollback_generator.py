@@ -33,7 +33,7 @@ for ddl in ddls:
     # CREATE → DROP
     # =====================
     if stmt_upper.startswith("CREATE TABLE"):
-        match = re.search(r"CREATE TABLE\s+([^\s(]+)", stmt, re.IGNORECASE)
+        match = re.search(r"CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)", stmt, re.IGNORECASE)
         if match:
             table = match.group(1)
             rollback_sql = f"DROP TABLE IF EXISTS {table};"
