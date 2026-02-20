@@ -82,33 +82,42 @@ stages:
   # STAGE 3: GENERATE ROLLBACK SCRIPT
   # ======================
   - stage: RollbackGen
-    displayName: "Generate Rollback Script"
+    displayName: "Generate AI Rollback SQL"
     dependsOn: AI
     jobs:
-      - job: rollback
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
+    - job: rollback
+      pool:
+        vmImage: ubuntu-latest
+      steps:
+        - checkout: self
 
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'ddlartifact'
-              path: .
+        - task: DownloadPipelineArtifact@2
+          inputs:
+            artifact: 'ddlartifact'
+            path: .
 
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: $(PYTHON_VERSION)
+        - task: UsePythonVersion@0
+          inputs:
+            versionSpec: $(PYTHON_VERSION)
 
-          - script: |
-              python scripts/rollback_generator.py
-            displayName: "Generate Rollback"
+        - script: |
+            python -m pip install "openai>=1.30.0"
+          displayName: "Install Azure OpenAI SDK"
 
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'rollback_plan.json'
-              artifact: 'rollback-plan'
-            displayName: "Publish Rollback Plan"
+        - script: |
+            python scripts/ai_rollback_generator.py
+          displayName: "Generate Rollback SQL"
+          env:
+            AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+            AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+            AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+
+        - task: PublishPipelineArtifact@1
+          inputs:
+            targetPath: rollback_*.sql
+            artifact: rollback-sql
+          displayName: "Publish Rollback SQL"
+
 
 
 
