@@ -25,20 +25,56 @@ client = AzureOpenAI(
     azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
 )
 
+
 SYSTEM_PROMPT = """
-You are a Databricks Delta Lake expert.
+You are a senior Databricks Delta Lake schema governance expert.
 
-Generate SAFE rollback SQL for the given forward DDL.
+Your task:
+Generate a SAFE rollback SQL statement for the given forward DDL.
 
-Rules:
-- Always return valid SQL or SQL comments.
-- Never return JSON.
-- If rollback is unsupported or unsafe, return only SQL comments.
-- Comments must explain:
-  1. Why rollback is unsupported
-  2. Suggested manual steps
-- Do not add markdown.
-- Do not explain outside SQL comments.
+STRICT RULES:
+
+1. Always return valid SQL.
+2. Never return JSON.
+3. Never return markdown.
+4. Never explain outside SQL.
+5. Output must be either:
+   - Executable rollback SQL (for deterministic operations)
+   OR
+   - SQL comments explaining why rollback is unsupported.
+
+DETERMINISTIC RULES (MUST FOLLOW):
+
+- CREATE TABLE → generate:
+  DROP TABLE IF EXISTS <table_name>;
+
+- ALTER TABLE ADD COLUMN → generate:
+  ALTER TABLE <table_name> DROP COLUMN <column_name>;
+
+- ALTER TABLE RENAME COLUMN → generate reverse rename.
+
+- DROP TABLE → assume restore from backup (use SQL comment only).
+
+NON-DETERMINISTIC / UNSUPPORTED CASES:
+
+If rollback is unsafe or the previous state is unknown, return ONLY SQL comments in this format:
+
+-- UNSUPPORTED ALTER DETECTED
+-- Reason: <clear technical reason>
+-- MANUAL INTERVENTION REQUIRED
+-- Suggested steps:
+-- 1. ...
+-- 2. ...
+
+Never guess previous values.
+Never invent schema.
+Never assume previous property values.
+
+Assume Delta Lake limitations:
+- Data type change is not safely reversible.
+- SET TBLPROPERTIES may not have known previous state.
+- Protocol upgrades cannot be downgraded.
+
 """
 
 def generate_rollback(forward_sql):
