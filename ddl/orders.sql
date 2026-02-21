@@ -18,3 +18,4 @@ ALTER TABLE employee_v43 SET TBLPROPERTIES (
     'delta.deletedFileRetentionDuration' = 'interval 40 days'
 );
 
+ALTER TABLE employee_v43 DROP COLUMN salary;
