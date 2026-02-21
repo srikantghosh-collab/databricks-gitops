@@ -128,7 +128,7 @@ for item in ddls:
             ddl_sql = inject_column_mapping_on_create(ddl_sql)
 
         # -----------------------------------------
-        # 🔥 TBLPROPERTIES SNAPSHOT (IMPORTANT)
+        # FIX-3: Capture TBLPROPERTIES snapshot BEFORE change
         # -----------------------------------------
         if (
             ddl_upper.startswith("ALTER TABLE")
@@ -140,7 +140,7 @@ for item in ddls:
                 ["python", "scripts/capture_tblproperties_snapshot_sql.py"],
                 env={
                     **os.environ,
-                    "TABLE_NAME": table_name,
+                    "DDL_TABLE_NAME": table_name,
                     "COMMIT_ID": commit_id
                 }
             )
@@ -167,7 +167,7 @@ for item in ddls:
             backed_up_tables.add(table_name)
 
         # -----------------------------------------
-        # Ensure column mapping for destructive ALTER
+        # FIX-2: Ensure column mapping before destructive ALTER
         # -----------------------------------------
         if is_destructive_alter(ddl_upper) and table_name:
             ensure_column_mapping(cursor, table_name)
