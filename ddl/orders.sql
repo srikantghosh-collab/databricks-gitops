@@ -19,5 +19,4 @@ ALTER TABLE employee_v39 SET TBLPROPERTIES (
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
 
-ALTER TABLE employee_v39
-CHANGE COLUMN salary salary DECIMAL(14,2);
+ALTER TABLE employee_v40 DROP column salary;
