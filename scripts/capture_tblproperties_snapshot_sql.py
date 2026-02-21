@@ -3,9 +3,11 @@ import os
 import sys
 from datetime import datetime
 
-# ----------------------------
-# Inputs (from env)
-# ----------------------------
+print("Capturing TBLPROPERTIES snapshot...")
+
+# -------------------------------------------------
+# Inputs
+# -------------------------------------------------
 TABLE_NAME = os.environ.get("DDL_TABLE_NAME")
 COMMIT_ID = os.environ.get("COMMIT_ID")
 
@@ -13,16 +15,17 @@ if not TABLE_NAME or not COMMIT_ID:
     print("ERROR: DDL_TABLE_NAME or COMMIT_ID not provided")
     sys.exit(1)
 
+# -------------------------------------------------
+# Output path (STANDARDIZED)
+# -------------------------------------------------
 OUTPUT_DIR = f"rollback/tblproperties/{TABLE_NAME}"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 OUTPUT_FILE = f"{OUTPUT_DIR}/{COMMIT_ID}.sql"
 
-print(f"Capturing TBLPROPERTIES snapshot for table: {TABLE_NAME}")
-
-# ----------------------------
+# -------------------------------------------------
 # Connect to Databricks
-# ----------------------------
+# -------------------------------------------------
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
@@ -31,31 +34,33 @@ conn = sql.connect(
 
 cursor = conn.cursor()
 
-# ----------------------------
-# Fetch table properties
-# ----------------------------
-cursor.execute(f"DESCRIBE DETAIL {TABLE_NAME}")
-row = cursor.fetchone()
-
-# Databricks returns a MAP in `properties`
-properties = row.asDict().get("properties", {})
+# -------------------------------------------------
+# Fetch TBLPROPERTIES (CORRECT WAY)
+# -------------------------------------------------
+cursor.execute(f"SHOW TBLPROPERTIES {TABLE_NAME}")
+rows = cursor.fetchall()
 
 cursor.close()
 conn.close()
 
-# ----------------------------
+properties = {row[0]: row[1] for row in rows if row[1] is not None}
+
+# -------------------------------------------------
 # Generate rollback SQL
-# ----------------------------
+# -------------------------------------------------
 sql_lines = []
 sql_lines.append(f"-- Rollback snapshot for table: {TABLE_NAME}")
-sql_lines.append(f"-- Captured at: {datetime.utcnow().isoformat()}Z")
 sql_lines.append(f"-- Commit: {COMMIT_ID}")
+sql_lines.append(f"-- Captured at: {datetime.utcnow().isoformat()}Z")
 sql_lines.append("")
 
 if not properties:
-    # First-time SET case → UNSET
+    # First-time SET case
     sql_lines.append(
-        f"-- No existing properties found, rollback will UNSET modified properties"
+        f"-- No existing properties found before this commit"
+    )
+    sql_lines.append(
+        f"-- Rollback requires UNSET of properties manually if needed"
     )
 else:
     sql_lines.append(f"ALTER TABLE {TABLE_NAME}")
@@ -70,12 +75,12 @@ else:
 
 rollback_sql = "\n".join(sql_lines)
 
-# ----------------------------
-# Write SQL snapshot
-# ----------------------------
+# -------------------------------------------------
+# Write rollback SQL
+# -------------------------------------------------
 with open(OUTPUT_FILE, "w") as f:
     f.write(rollback_sql)
 
-print(f"Snapshot rollback SQL generated at: {OUTPUT_FILE}")
-print("\n--- Rollback SQL ---")
+print(f"Rollback SQL snapshot saved at: {OUTPUT_FILE}")
+print("\n--- ROLLBACK SQL ---")
 print(rollback_sql)

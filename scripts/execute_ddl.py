@@ -20,7 +20,6 @@ with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
 ddls = payload.get("ddls", [])
-
 if not ddls:
     print("No DDL statements to execute — exiting")
     sys.exit(0)
@@ -44,7 +43,7 @@ cursor.execute("USE SCHEMA default")
 print("Catalog & schema set")
 
 # =================================================
-# Helper Functions
+# Helper functions
 # =================================================
 
 def extract_table_name(ddl_sql):
@@ -73,9 +72,6 @@ def is_destructive_alter(ddl_upper):
 
 
 def ensure_column_mapping(cursor, table_name):
-    """
-    Ensure Delta protocol + column mapping BEFORE destructive column ops
-    """
     cursor.execute(f"SHOW TBLPROPERTIES {table_name}")
     props = {row[0]: row[1] for row in cursor.fetchall()}
 
@@ -98,9 +94,6 @@ def ensure_column_mapping(cursor, table_name):
 
 
 def inject_column_mapping_on_create(ddl_sql):
-    """
-    Ensure CREATE TABLE always has column mapping enabled
-    """
     ddl_upper = ddl_sql.upper()
     if ddl_upper.startswith("CREATE TABLE") and "TBLPROPERTIES" not in ddl_upper:
         return ddl_sql.rstrip(";") + \
@@ -108,7 +101,7 @@ def inject_column_mapping_on_create(ddl_sql):
     return ddl_sql
 
 # =================================================
-# Execution Control
+# Execution control
 # =================================================
 
 backed_up_tables = set()
@@ -135,33 +128,46 @@ for item in ddls:
             ddl_sql = inject_column_mapping_on_create(ddl_sql)
 
         # -----------------------------------------
-        # Backup logic
+        # 🔥 TBLPROPERTIES SNAPSHOT (IMPORTANT)
+        # -----------------------------------------
+        if (
+            ddl_upper.startswith("ALTER TABLE")
+            and "SET TBLPROPERTIES" in ddl_upper
+            and table_name
+        ):
+            print(f"Capturing TBLPROPERTIES snapshot for {table_name}")
+            subprocess.check_call(
+                ["python", "scripts/capture_tblproperties_snapshot_sql.py"],
+                env={
+                    **os.environ,
+                    "TABLE_NAME": table_name,
+                    "COMMIT_ID": commit_id
+                }
+            )
+
+        # -----------------------------------------
+        # Backup logic (table-level rollback)
         # -----------------------------------------
         need_backup = False
-
         if ddl_upper.startswith(("DROP", "TRUNCATE")):
             need_backup = True
-
         elif ddl_upper.startswith("ALTER") and is_destructive_alter(ddl_upper):
             need_backup = True
 
         if need_backup and table_name and table_name not in backed_up_tables:
             print(f"Taking backup for table: {table_name}")
-
             subprocess.check_call(
                 ["python", "scripts/backup_before_drop.py"],
                 env={**os.environ, "DDL_TABLE_NAME": table_name},
             )
-
             subprocess.check_call(
                 ["python", "scripts/upload_rollback_metadata.py"],
                 env={**os.environ, "COMMIT_ID": commit_id},
             )
-
             backed_up_tables.add(table_name)
 
         # -----------------------------------------
-        # FIX-2: destructive ALTER → ensure mapping
+        # Ensure column mapping for destructive ALTER
         # -----------------------------------------
         if is_destructive_alter(ddl_upper) and table_name:
             ensure_column_mapping(cursor, table_name)
@@ -188,7 +194,6 @@ for item in ddls:
     except Exception as e:
         failed = True
         error_msg = str(e)
-
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
                 current_timestamp(),
@@ -200,7 +205,7 @@ for item in ddls:
         """)
         print("Audit log recorded: FAILED")
         print("DDL execution failed:", error_msg)
-        break  # FAIL FAST
+        break
 
 # =================================================
 # Cleanup
