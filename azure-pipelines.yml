@@ -289,7 +289,7 @@ stages:
              REVERT_COMMIT: $(REVERT_COMMIT)
 
           - script: python scripts/restore_from_backup.py
-            condition: eq(dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'], 'TABLE')
+            condition: eq(variables.ROLLBACK_TYPE, 'TBLPROPERTIES')
             env:
              DATABRICKS_HOST: $(Databricks_Host)
              DATABRICKS_TOKEN: $(Databricks_Token)
@@ -297,7 +297,7 @@ stages:
 
     # TBLPROPERTIES rollback
           - script: python scripts/execute_rollback_sql.py
-            condition: eq(dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'], 'TBLPROPERTIES')
+            condition: eq(variables.ROLLBACK_TYPE, 'TBLPROPERTIES')
             env:
              AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
              AZURE_BLOB_CONTAINER: rollback-sql
