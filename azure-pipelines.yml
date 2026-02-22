@@ -279,21 +279,30 @@ stages:
             displayName: "Install dependencies"
 
 
-          # fetch rollback metadata
-          - script: |
-              python scripts/fetch_rollback_metadata.py
-            displayName: "Fetch rollback metadata"
+          # TABLE rollback
+          - script: python scripts/fetch_rollback_metadata.py
+            condition: eq(dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'], 'TABLE')
             env:
-              AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
-              AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
-              AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-              REVERT_COMMIT: $(REVERT_COMMIT)
-       
+             AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
+             AZURE_BLOB_CONTAINER: rollback-metadata
+             AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
+             REVERT_COMMIT: $(REVERT_COMMIT)
 
-          - script: |
-              python scripts/restore_from_backup.py
-            displayName: "Restore table from backup"
+          - script: python scripts/restore_from_backup.py
+            condition: eq(dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'], 'TABLE')
             env:
-              DATABRICKS_HOST: $(Databricks_Host)
-              DATABRICKS_TOKEN: $(Databricks_Token)
-              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+             DATABRICKS_HOST: $(Databricks_Host)
+             DATABRICKS_TOKEN: $(Databricks_Token)
+             DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
+    # TBLPROPERTIES rollback
+          - script: python scripts/execute_rollback_sql.py
+            condition: eq(dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'], 'TBLPROPERTIES')
+            env:
+             AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
+             AZURE_BLOB_CONTAINER: rollback-sql
+             AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
+             REVERT_COMMIT: $(REVERT_COMMIT)
+             DATABRICKS_HOST: $(Databricks_Host)
+             DATABRICKS_TOKEN: $(Databricks_Token)
+             DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
