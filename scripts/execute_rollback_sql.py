@@ -1,45 +1,31 @@
 from databricks import sql
+from azure.storage.blob import BlobClient
 import os
 import sys
-import subprocess
 
-print("Starting rollback SQL execution...")
+TABLE_NAME = os.environ.get("TABLE_NAME")
+COMMIT_ID = os.environ.get("REVERT_COMMIT")
 
-# -------------------------------------------------
-# Inputs
-# -------------------------------------------------
-ROLLBACK_SQL_FILE = os.environ.get("ROLLBACK_SQL_FILE")
-COMMIT_ID = os.environ.get("COMMIT_ID")
-
-if not ROLLBACK_SQL_FILE or not os.path.exists(ROLLBACK_SQL_FILE):
-    print("ERROR: Rollback SQL file not provided or not found")
+if not TABLE_NAME or not COMMIT_ID:
+    print("ERROR: TABLE_NAME or REVERT_COMMIT not provided")
     sys.exit(1)
 
-if not COMMIT_ID:
-    COMMIT_ID = subprocess.check_output(
-        ["git", "rev-parse", "HEAD"],
-        text=True
-    ).strip()
+blob_path = f"tblproperties/{TABLE_NAME}/{COMMIT_ID}.sql"
 
-# -------------------------------------------------
-# Read rollback SQL
-# -------------------------------------------------
-with open(ROLLBACK_SQL_FILE) as f:
-    sql_text = f.read()
+print(f"Fetching rollback SQL from Blob: {blob_path}")
 
-statements = [
-    stmt.strip()
-    for stmt in sql_text.split(";")
-    if stmt.strip() and not stmt.strip().startswith("--")
-]
+blob = BlobClient(
+    account_url=os.environ["AZURE_BLOB_ACCOUNT_URL"],
+    container_name="rollback-sql",
+    blob_name=blob_path,
+    credential=os.environ["AZURE_BLOB_SAS"]
+)
 
-if not statements:
-    print("No rollback SQL statements to execute")
-    sys.exit(0)
+rollback_sql = blob.download_blob().readall().decode("utf-8")
 
-# -------------------------------------------------
-# Connect to Databricks
-# -------------------------------------------------
+print("\nExecuting rollback SQL:\n")
+print(rollback_sql)
+
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
@@ -47,53 +33,9 @@ conn = sql.connect(
 )
 
 cursor = conn.cursor()
-cursor.execute("USE CATALOG hive_metastore")
-cursor.execute("USE SCHEMA default")
+cursor.execute(rollback_sql)
 
-print("Catalog & schema set")
-
-# -------------------------------------------------
-# Execute rollback SQL
-# -------------------------------------------------
-for stmt in statements:
-    try:
-        print("\nExecuting rollback SQL:")
-        print(stmt)
-
-        cursor.execute(stmt)
-
-        cursor.execute(f"""
-            INSERT INTO ddl_audit_log VALUES (
-                current_timestamp(),
-                '{COMMIT_ID}',
-                '{stmt.replace("'", "''")}',
-                'ROLLBACK',
-                'SUCCESS'
-            )
-        """)
-
-        print("Rollback audit recorded: SUCCESS")
-
-    except Exception as e:
-        cursor.execute(f"""
-            INSERT INTO ddl_audit_log VALUES (
-                current_timestamp(),
-                '{COMMIT_ID}',
-                '{stmt.replace("'", "''")}',
-                'ROLLBACK',
-                'FAILED'
-            )
-        """)
-
-        print("Rollback failed:", str(e))
-        cursor.close()
-        conn.close()
-        raise Exception("Rollback stopped due to failure")
-
-# -------------------------------------------------
-# Cleanup
-# -------------------------------------------------
 cursor.close()
 conn.close()
 
-print("\nRollback executed successfully")
+print("Rollback SQL executed successfully")
