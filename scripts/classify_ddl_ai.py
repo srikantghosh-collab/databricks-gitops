@@ -9,6 +9,8 @@ print("Starting AI DDL Classification...")
 # -----------------------------
 if not os.path.exists("ddl_output.json"):
     print("No ddl_output.json found — skipping classification")
+    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
+    print("##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]NONE")
     exit(0)
 
 with open("ddl_output.json") as f:
@@ -30,16 +32,18 @@ ddl_statements = "\n".join([d["statement"] for d in ddls])
 system_prompt = """
 You are a Databricks Delta Lake DDL expert.
 
-Classify the DDL into one of these categories:
+You may return MULTIPLE comma-separated classifications if the DDL contains
+more than one type of operation.
 
-1. DROP_TABLE
-2. TRUNCATE_TABLE
-3. DESTRUCTIVE_ALTER
-4. SET_TBLPROPERTIES
-5. SAFE_ALTER
-6. CREATE_TABLE
+Valid classifications:
+DROP_TABLE
+TRUNCATE_TABLE
+DESTRUCTIVE_ALTER
+CREATE_TABLE
+SET_TBLPROPERTIES
+SAFE_ALTER
 
-Return ONLY the category name.
+Return ONLY the classification names, comma-separated if multiple.
 """
 
 user_prompt = f"""
@@ -66,30 +70,51 @@ response = client.chat.completions.create(
     temperature=0
 )
 
-ai_response = response.choices[0].message.content.strip().upper()
-
-print(f"AI raw classification: {ai_response}")
+ai_raw = response.choices[0].message.content.strip().upper()
+print(f"AI raw classification: {ai_raw}")
 
 # -----------------------------
-# Normalize classification
+# Parse multiple labels
 # -----------------------------
-valid_classes = [
+ai_labels = [x.strip() for x in ai_raw.replace("\n", "").split(",") if x.strip()]
+
+VALID_CLASSES = {
     "DROP_TABLE",
     "TRUNCATE_TABLE",
     "DESTRUCTIVE_ALTER",
+    "CREATE_TABLE",
     "SET_TBLPROPERTIES",
-    "SAFE_ALTER",
-    "CREATE_TABLE"
+    "SAFE_ALTER"
+}
+
+ai_labels = [x for x in ai_labels if x in VALID_CLASSES]
+
+if not ai_labels:
+    print("AI returned no valid classification. Defaulting to SAFE_ALTER.")
+    ai_labels = ["SAFE_ALTER"]
+
+# -----------------------------
+# PRIORITY DECISION (CRITICAL FIX)
+# -----------------------------
+PRIORITY_ORDER = [
+    "DROP_TABLE",
+    "TRUNCATE_TABLE",
+    "DESTRUCTIVE_ALTER",
+    "CREATE_TABLE",
+    "SET_TBLPROPERTIES",
+    "SAFE_ALTER"
 ]
 
-if ai_response not in valid_classes:
-    print("AI returned unexpected classification. Defaulting to SAFE_ALTER.")
-    ai_response = "SAFE_ALTER"
+final_classification = "SAFE_ALTER"
+for p in PRIORITY_ORDER:
+    if p in ai_labels:
+        final_classification = p
+        break
 
 # -----------------------------
 # Determine IS_DROP
 # -----------------------------
-is_drop = ai_response in [
+is_drop = final_classification in [
     "DROP_TABLE",
     "TRUNCATE_TABLE",
     "DESTRUCTIVE_ALTER"
@@ -98,19 +123,30 @@ is_drop = ai_response in [
 # -----------------------------
 # Determine ROLLBACK_TYPE
 # -----------------------------
-if ai_response in ["DROP_TABLE", "TRUNCATE_TABLE", "DESTRUCTIVE_ALTER", "CREATE_TABLE"]:
+if final_classification in [
+    "DROP_TABLE",
+    "TRUNCATE_TABLE",
+    "DESTRUCTIVE_ALTER",
+    "CREATE_TABLE"
+]:
     rollback_type = "TABLE"
-elif ai_response == "SET_TBLPROPERTIES":
+
+elif final_classification == "SET_TBLPROPERTIES":
     rollback_type = "TBLPROPERTIES"
+
 else:
     rollback_type = "NONE"
 
-print(f"Final Classification: {ai_response}")
-print(f"Rollback Type: {rollback_type}")
-print(f"Is Drop: {is_drop}")
+# -----------------------------
+# Final logs (VERY IMPORTANT)
+# -----------------------------
+print("Resolved AI labels:", ai_labels)
+print("Final Classification:", final_classification)
+print("Rollback Type:", rollback_type)
+print("Is Drop:", is_drop)
 
 # -----------------------------
-# 🔥 Azure DevOps Output Variables (CRITICAL)
+# Azure DevOps Output Variables
 # -----------------------------
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
