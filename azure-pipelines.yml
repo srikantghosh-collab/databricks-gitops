@@ -251,7 +251,9 @@ stages:
   # ======================
   - stage: AutoRollback
     displayName: "Auto Rollback from Backup "
-    dependsOn: Detect
+    dependsOn: 
+          - Detect
+          - AI
     condition: |
      and(
       succeeded(),
