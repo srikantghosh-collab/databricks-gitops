@@ -98,7 +98,7 @@ is_drop = ai_response in [
 # -----------------------------
 # Determine ROLLBACK_TYPE
 # -----------------------------
-if ai_response in ["DROP_TABLE", "TRUNCATE_TABLE", "DESTRUCTIVE_ALTER"]:
+if ai_response in ["DROP_TABLE", "TRUNCATE_TABLE", "DESTRUCTIVE_ALTER", "CREATE_TABLE"]:
     rollback_type = "TABLE"
 elif ai_response == "SET_TBLPROPERTIES":
     rollback_type = "TBLPROPERTIES"
