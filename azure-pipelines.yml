@@ -265,7 +265,7 @@ stages:
 
         variables: 
            REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
-
+           ROLLBACK_TYPE: $[ stageDependencies.AI.ai.outputs['SetOutput.ROLLBACK_TYPE'] ]
         steps:
           - checkout: self
             fetchDepth: 0
@@ -281,7 +281,7 @@ stages:
 
           # TABLE rollback
           - script: python scripts/fetch_rollback_metadata.py
-            condition: eq(dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'], 'TABLE')
+            condition: eq(variables.ROLLBACK_TYPE, 'TABLE')
             env:
              AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
              AZURE_BLOB_CONTAINER: rollback-metadata
