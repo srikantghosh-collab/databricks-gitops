@@ -4,11 +4,14 @@ import os
 import sys
 from datetime import datetime
 
-TABLE_NAME = os.environ.get("TABLE_NAME")
+# ----------------------------
+# Inputs (FIXED)
+# ----------------------------
+TABLE_NAME = os.environ.get("DDL_TABLE_NAME")
 COMMIT_ID = os.environ.get("COMMIT_ID")
 
 if not TABLE_NAME or not COMMIT_ID:
-    print("ERROR: TABLE_NAME or COMMIT_ID not provided")
+    print("ERROR: DDL_TABLE_NAME or COMMIT_ID not provided")
     sys.exit(1)
 
 print(f"Capturing TBLPROPERTIES snapshot for {TABLE_NAME}")
