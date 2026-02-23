@@ -47,7 +47,8 @@ STRICT RULES (NON-NEGOTIABLE):
    No markdown. No JSON. No explanations outside comments.
 
 3. NEVER hallucinate previous values.
-   If previous state is UNKNOWN, rollback must be PARTIAL or IRREVERSIBLE.
+   If previous state is UNKNOWN, rollback must be PARTIAL or IRREVERSIBLE
+   EXCEPT when the table is created earlier in the same commit.
 
 4. If rollback is unsafe:
    - DO NOT generate executable SQL.
@@ -78,7 +79,6 @@ ALTER TABLE SET TBLPROPERTIES
 PARTIAL
 - If previous value known → restore old value
 - If unknown → comments only
-
 --------------------------------------------------
 """
 
@@ -90,6 +90,33 @@ def format_previous_state(item):
     if not prev:
         return "UNKNOWN"
     return json.dumps(prev, indent=2)
+
+
+def table_created_in_same_commit(ddls, current_item):
+    """
+    Returns True if the table of current_item
+    was created earlier in the same commit.
+    """
+    stmt = current_item["statement"].upper()
+
+    # extract table name roughly
+    tokens = stmt.split()
+    table_name = None
+    if "TABLE" in tokens:
+        idx = tokens.index("TABLE")
+        if idx + 1 < len(tokens):
+            table_name = tokens[idx + 1]
+
+    if not table_name:
+        return False
+
+    for d in ddls:
+        if d is current_item:
+            break
+        if d["statement"].upper().startswith("CREATE TABLE") and table_name in d["statement"].upper():
+            return True
+
+    return False
 
 
 def generate_rollback(forward_sql, previous_state):
@@ -129,11 +156,12 @@ for item in ddls:
     rollback_sql = generate_rollback(forward_sql, previous_state)
 
     # ------------------------------------
-    # SAFETY CHECK: NO HALLUCINATION
+    # SAFETY CHECK (FIXED)
     # ------------------------------------
     if (
         "SET TBLPROPERTIES" in rollback_sql.upper()
         and previous_state == "UNKNOWN"
+        and not table_created_in_same_commit(ddls, item)
     ):
         print("ERROR: Unsafe rollback generated without previous state.")
         print(f"DDL: {forward_sql}")
