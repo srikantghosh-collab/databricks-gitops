@@ -14,8 +14,8 @@ INSERT INTO employee_v54  VALUES
     (3, 'Mike', 'Finance', 70000, current_timestamp());
 
 ALTER TABLE employee_v54 SET TBLPROPERTIES (
-    'delta.logRetentionDuration' = 'interval 30 days',
-    'delta.deletedFileRetentionDuration' = 'interval 30 days'
+    'delta.logRetentionDuration' = 'interval 40 days',
+    'delta.deletedFileRetentionDuration' = 'interval 40 days'
 );
 
 ALTER TABLE employee_v54 ADD COLUMN emp_email STRING;
