@@ -1,6 +1,5 @@
 from databricks import sql
 import os
-import subprocess
 import json
 import re
 import sys
@@ -127,23 +126,6 @@ for item in ddls:
         if ddl_upper.startswith("CREATE TABLE"):
             ddl_sql = inject_column_mapping_on_create(ddl_sql)
 
-        # -----------------------------------------
-        # FIX-3: Capture TBLPROPERTIES snapshot BEFORE change
-        # -----------------------------------------
-        if (
-            ddl_upper.startswith("ALTER TABLE")
-            and "SET TBLPROPERTIES" in ddl_upper
-            and table_name
-        ):
-            print(f"Capturing TBLPROPERTIES snapshot for {table_name}")
-            subprocess.check_call(
-                ["python", "scripts/capture_tblproperties_snapshot_sql.py"],
-                env={
-                    **os.environ,
-                    "DDL_TABLE_NAME": table_name,
-                    "COMMIT_ID": commit_id
-                }
-            )
 
         # -----------------------------------------
         # Backup logic (table-level rollback)

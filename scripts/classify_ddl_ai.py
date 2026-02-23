@@ -121,32 +121,13 @@ is_drop = final_classification in [
 ]
 
 # -----------------------------
-# Determine ROLLBACK_TYPE
-# -----------------------------
-if final_classification in [
-    "DROP_TABLE",
-    "TRUNCATE_TABLE",
-    "DESTRUCTIVE_ALTER",
-    "CREATE_TABLE"
-]:
-    rollback_type = "TABLE"
-
-elif final_classification == "SET_TBLPROPERTIES":
-    rollback_type = "TBLPROPERTIES"
-
-else:
-    rollback_type = "NONE"
-
-# -----------------------------
 # Final logs (VERY IMPORTANT)
 # -----------------------------
 print("Resolved AI labels:", ai_labels)
 print("Final Classification:", final_classification)
-print("Rollback Type:", rollback_type)
 print("Is Drop:", is_drop)
 
 # -----------------------------
 # Azure DevOps Output Variables
 # -----------------------------
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
-print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
