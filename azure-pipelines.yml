@@ -190,6 +190,7 @@ stages:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+        COMMIT_ID: $(Build.SourceVersion)
         ROLLBACK_TYPE: $[ dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'] ]
         IS_DROP: $[ dependencies.AI.outputs['ai.SetOutput.IS_DROP'] ]
         AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
