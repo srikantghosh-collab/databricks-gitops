@@ -3,6 +3,7 @@ import os
 import json
 import re
 import sys
+import subprocess
 
 print("Starting DDL execution...")
 
@@ -26,6 +27,13 @@ if not ddls:
 commit_id = payload.get("commit_id") or subprocess.check_output(
     ["git", "rev-parse", "HEAD"], text=True
 ).strip()
+
+# Rollback decision from AI stage
+rollback_type = os.environ.get("ROLLBACK_TYPE", "NONE")
+is_drop = os.environ.get("IS_DROP", "false") == "true"
+
+print(f"Rollback type: {rollback_type}")
+print(f"Is drop: {is_drop}")
 
 # -------------------------------------------------
 # Connect to Databricks
@@ -51,8 +59,7 @@ def extract_table_name(ddl_sql):
         r"CREATE\s+TABLE\s+([^\s(]+)",
         r"ALTER\s+TABLE\s+([^\s;]+)",
         r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
-        r"DROP\s+TABLE\s+([^\s;]+)",
-        r"TRUNCATE\s+TABLE\s+([^\s;]+)"
+        r"DROP\s+TABLE\s+([^\s;]+)"
     ]
     for p in patterns:
         m = re.search(p, ddl_sql, re.IGNORECASE)
@@ -61,55 +68,13 @@ def extract_table_name(ddl_sql):
     return None
 
 
-def is_destructive_alter(ddl_upper):
-    return any(op in ddl_upper for op in [
-        "DROP COLUMN",
-        "RENAME COLUMN",
-        "ALTER COLUMN",
-        "CHANGE COLUMN"
-    ])
-
-
-def ensure_column_mapping(cursor, table_name):
-    cursor.execute(f"SHOW TBLPROPERTIES {table_name}")
-    props = {row[0]: row[1] for row in cursor.fetchall()}
-
-    needs_upgrade = (
-        props.get("delta.columnMapping.mode") != "name"
-        or int(props.get("delta.minReaderVersion", 0)) < 2
-        or int(props.get("delta.minWriterVersion", 0)) < 5
-    )
-
-    if needs_upgrade:
-        print(f"Enabling column mapping + protocol upgrade for {table_name}")
-        cursor.execute(f"""
-            ALTER TABLE {table_name}
-            SET TBLPROPERTIES (
-                'delta.columnMapping.mode' = 'name',
-                'delta.minReaderVersion' = '2',
-                'delta.minWriterVersion' = '5'
-            )
-        """)
-
-
-def inject_column_mapping_on_create(ddl_sql):
-    ddl_upper = ddl_sql.upper()
-    if ddl_upper.startswith("CREATE TABLE") and "TBLPROPERTIES" not in ddl_upper:
-        return ddl_sql.rstrip(";") + \
-            " TBLPROPERTIES ('delta.columnMapping.mode'='name');"
-    return ddl_sql
-
 # =================================================
-# Execution control
+# Execute DDLs
 # =================================================
 
 backed_up_tables = set()
 failed = False
 error_msg = None
-
-# =================================================
-# Execute DDLs
-# =================================================
 
 for item in ddls:
     ddl_sql = item["statement"].strip()
@@ -121,38 +86,34 @@ for item in ddls:
         print(ddl_sql)
 
         # -----------------------------------------
-        # CREATE TABLE → inject column mapping
-        # -----------------------------------------
-        if ddl_upper.startswith("CREATE TABLE"):
-            ddl_sql = inject_column_mapping_on_create(ddl_sql)
-
-
-        # -----------------------------------------
-        # Backup logic (table-level rollback)
+        # Backup decision (AI driven)
         # -----------------------------------------
         need_backup = False
-        if ddl_upper.startswith(("DROP", "TRUNCATE")):
+
+        if ddl_upper.startswith("DROP TABLE"):
             need_backup = True
-        elif ddl_upper.startswith("ALTER") and is_destructive_alter(ddl_upper):
+        elif ddl_upper.startswith("ALTER TABLE") and rollback_type in ("PARTIAL", "IRREVERSIBLE"):
             need_backup = True
 
-        if need_backup and table_name and table_name not in backed_up_tables:
-            print(f"Taking backup for table: {table_name}")
-            subprocess.check_call(
-                ["python", "scripts/backup_before_drop.py"],
-                env={**os.environ, "DDL_TABLE_NAME": table_name},
-            )
-            subprocess.check_call(
-                ["python", "scripts/upload_rollback_metadata.py"],
-                env={**os.environ, "COMMIT_ID": commit_id},
-            )
-            backed_up_tables.add(table_name)
+        if need_backup:
+            if not table_name:
+                raise Exception("Backup required but table name could not be determined")
 
-        # -----------------------------------------
-        # FIX-2: Ensure column mapping before destructive ALTER
-        # -----------------------------------------
-        if is_destructive_alter(ddl_upper) and table_name:
-            ensure_column_mapping(cursor, table_name)
+            if table_name not in backed_up_tables:
+                print(f"Taking backup for table: {table_name}")
+
+                subprocess.check_call(
+                    ["python", "scripts/backup_before_drop.py"],
+                    env={**os.environ, "DDL_TABLE_NAME": table_name},
+                )
+
+                subprocess.check_call(
+                    ["python", "scripts/upload_rollback_metadata.py"],
+                    env={**os.environ, "COMMIT_ID": commit_id},
+                )
+
+                backed_up_tables.add(table_name)
+                print(f"Backup completed for table: {table_name}")
 
         # -----------------------------------------
         # Execute DDL
@@ -176,6 +137,7 @@ for item in ddls:
     except Exception as e:
         failed = True
         error_msg = str(e)
+
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
                 current_timestamp(),
@@ -185,6 +147,7 @@ for item in ddls:
                 'FAILED'
             )
         """)
+
         print("Audit log recorded: FAILED")
         print("DDL execution failed:", error_msg)
         break

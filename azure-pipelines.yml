@@ -8,286 +8,273 @@ variables:
 # STAGE 1: DETECT
 # ======================
 stages:
-  - stage: Detect
-    displayName: "Detect DDL Changes"
-    jobs:
-      - job: detect
-        displayName: "Detection Job"
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-            fetchDepth: 0
+- stage: Detect
+  displayName: "Detect DDL Changes"
+  jobs:
+  - job: detect
+    displayName: "Detection Job"
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+      fetchDepth: 0
 
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: $(PYTHON_VERSION)
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
 
-          - script: |
-              python scripts/detect_ddl.py
-            name: detectddl
-            displayName: "Detect DDL"
+    - script: |
+        python scripts/detect_ddl.py
+      name: detectddl
+      displayName: "Detect DDL"
 
-          - script: |
-              python scripts/detect_revert.py
-            name: detectrevert
-            displayName: "Detect Git Revert"
+    - script: |
+        python scripts/detect_revert.py
+      name: detectrevert
+      displayName: "Detect Git Revert"
 
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: 'ddl_output.json'
-              artifact: 'ddlartifact'
-            displayName: "Publish DDL Artifact"
-
-
-  # ======================
-  # STAGE 2: AI CLASSIFICATION
-  # ======================
-  - stage: AI
-    displayName: "AI DDL Classification"
-    dependsOn: Detect
-    jobs:
-      - job: ai
-        displayName: "AI Job"
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'ddlartifact'
-              path: .
-            displayName: "Download DDL Artifact"
-
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: $(PYTHON_VERSION)
-
-          - script: |
-              python -m pip install "openai>=1.30.0"
-            displayName: "Install Azure OpenAI SDK"
-
-          - script: |
-              python scripts/classify_ddl_ai.py
-            name: SetOutput
-            displayName: "Run AI Classification"
-            env:
-              AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
-              AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
-              AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: 'ddl_output.json'
+        artifact: 'ddlartifact'
+      displayName: "Publish DDL Artifact"
 
 
-  # ======================
-  # STAGE 3: GENERATE ROLLBACK SCRIPT
-  # ======================
-  - stage: RollbackGen
-    displayName: "Generate AI Rollback SQL"
-    dependsOn: AI
-    jobs:
-    - job: rollback
-      pool:
-        vmImage: ubuntu-latest
-      steps:
-        - checkout: self
+# ======================
+# STAGE 2: AI CLASSIFICATION
+# ======================
+- stage: AI
+  displayName: "AI DDL Classification"
+  dependsOn: Detect
+  jobs:
+  - job: ai
+    displayName: "AI Job"
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
 
-        - task: DownloadPipelineArtifact@2
-          inputs:
-            artifact: 'ddlartifact'
-            path: .
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'ddlartifact'
+        path: .
+      displayName: "Download DDL Artifact"
 
-        - task: UsePythonVersion@0
-          inputs:
-            versionSpec: $(PYTHON_VERSION)
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
 
-        - script: |
-            python -m pip install "openai>=1.30.0"
-          displayName: "Install Azure OpenAI SDK"
+    - script: |
+        python -m pip install "openai>=1.30.0"
+      displayName: "Install Azure OpenAI SDK"
 
-        - script: |
-            python scripts/ai_rollback_generator.py
-          displayName: "Generate Rollback SQL"
-          env:
-            AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
-            AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
-            AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
-
-        - task: PublishPipelineArtifact@1
-          inputs:
-            targetPath: $(System.DefaultWorkingDirectory)
-            artifact: rollback-sql
-          displayName: "Publish Rollback SQL"
+    - script: |
+        python scripts/classify_ddl_ai.py
+      name: SetOutput
+      displayName: "Run AI Classification"
+      env:
+        AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+        AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+        AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
 
+# ======================
+# STAGE 3: GENERATE ROLLBACK SCRIPT
+# ======================
+- stage: RollbackGen
+  displayName: "Generate AI Rollback SQL"
+  dependsOn: AI
+  jobs:
+  - job: rollback
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'ddlartifact'
+        path: .
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+
+    - script: |
+        python -m pip install "openai>=1.30.0"
+      displayName: "Install Azure OpenAI SDK"
+
+    - script: |
+        python scripts/ai_rollback_generator.py
+      displayName: "Generate Rollback SQL"
+      env:
+        AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+        AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+        AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+
+    - task: PublishPipelineArtifact@1
+      inputs:
+        targetPath: $(System.DefaultWorkingDirectory)
+        artifact: rollback-sql
+      displayName: "Publish Rollback SQL"
 
 
-  # ======================
-  # STAGE 4: MANUAL APPROVAL (DROP ONLY)
-  # ======================
-  - stage: Approval
-    displayName: "Manual Approval for DROP"
-    dependsOn: AI
-    condition: |
-      and(
-        succeeded(),
-        eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'true')
-      )
-    jobs:
-      - job: approval
-        pool: server
-        steps:
-          - task: ManualValidation@0
-            inputs:
-              instructions: "DROP / destructive DDL detected. Approve to continue."
-              timeoutInMinutes: 1440
-
-
-  # ======================
-  # STAGE 5: EXECUTE DDL
-  # ======================
-  - stage: Execute
-    displayName: "Execute DDL"
-    dependsOn:
-      - AI
-      - RollbackGen
-      - Approval
-    condition: |
-      and(
-        succeeded('AI'),
-        eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'false'),
-        or(
-          eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'false'),
-          succeeded('Approval')
-        )
-      )
-
-    jobs:
-      - job: execute
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'ddlartifact'
-              path: .
-            displayName: "Download DDL Artifact"
-
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: $(PYTHON_VERSION)
-
-          - script: |
-              python -m pip install --upgrade pip
-              python -m pip install databricks-sql-connector
-              python -m pip install azure-storage-blob
-            displayName: "Install Databricks + Azure Blob SDK"
-
-          - script: |
-              python scripts/execute_ddl.py
-            displayName: "Execute DDL"
-            env:
-    # Databricks
-             DATABRICKS_HOST: $(Databricks_Host)
-             DATABRICKS_TOKEN: $(Databricks_Token)
-             DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-
-    # Azure Blob (ROLLBACK METADATA)
-             AZURE_STORAGE_ACCOUNT: $(AZURE_STORAGE_ACCOUNT)
-             AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
-             AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-
-
-          # metadata check MUST be in same job
-          - script: |
-              if [ -f rollback_metadata.json ]; then
-                echo "##vso[task.setvariable variable=HAS_METADATA]true"
-              else
-                echo "##vso[task.setvariable variable=HAS_METADATA]false"
-              fi
-            displayName: "Check Rollback Metadata"
-
-          # publish metadata as pipeline artifact
-          - task: PublishPipelineArtifact@1
-            condition: eq(variables.HAS_METADATA, 'true')
-            inputs:
-              targetPath: 'rollback_metadata.json'
-              artifact: 'rollbackmeta'
-            displayName: "Publish Rollback Metadata"
-
-
-  # ======================
-  # STAGE 6: SCHEMA RECONCILIATION
-  # ======================
-  - stage: Reconcile
-    displayName: "Schema Reconciliation"
-    dependsOn: Execute
-    condition: succeeded('Execute')
-    jobs:
-      - job: reconcile
-        pool:
-          vmImage: ubuntu-latest
-        steps:
-          - checkout: self
-
-          - task: UsePythonVersion@0
-            inputs:
-              versionSpec: $(PYTHON_VERSION)
-
-          - script: |
-              pip install databricks-sql-connector pyyaml
-              python scripts/reconcile_schema.py
-            displayName: "Run Reconciliation"
-            env:
-              AUTO_FIX: "false"
-              DATABRICKS_HOST: $(Databricks_Host)
-              DATABRICKS_TOKEN: $(Databricks_Token)
-              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-
-
-  # ======================
-  # STAGE 7: AUTO ROLLBACK (GIT REVERT)
-  # ======================
-  - stage: AutoRollback
-    displayName: "Auto Rollback from Backup"
-    dependsOn: Detect
-    condition: |
-      and(
+# ======================
+# STAGE 4: MANUAL APPROVAL (DROP ONLY)
+# ======================
+- stage: Approval
+  displayName: "Manual Approval for DROP"
+  dependsOn: AI
+  condition: |
+    and(
       succeeded(),
-      eq(stageDependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'true')
-      ) 
-    jobs:
-     - job: rollback
-       pool:
-        vmImage: ubuntu-latest
-        variables:
-        REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
-        steps:
-        - checkout: self
-          fetchDepth: 0
+      eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'true')
+    )
+  jobs:
+  - job: approval
+    pool: server
+    steps:
+    - task: ManualValidation@0
+      inputs:
+        instructions: "DROP or irreversible DDL detected. Approve to continue."
+        timeoutInMinutes: 1440
 
-        - task: UsePythonVersion@0
-          inputs:
-            versionSpec: $(PYTHON_VERSION)
 
-        - script: |
-            python -m pip install azure-storage-blob databricks-sql-connector
-          displayName: "Install dependencies"
+# ======================
+# STAGE 5: EXECUTE DDL
+# ======================
+- stage: Execute
+  displayName: "Execute DDL"
+  dependsOn:
+    - AI
+    - RollbackGen
+    - Approval
+  condition: |
+    and(
+      succeeded('AI'),
+      eq(dependencies.Detect.outputs['detect.detectrevert.IS_REVERT'], 'false'),
+      or(
+        eq(dependencies.AI.outputs['ai.SetOutput.IS_DROP'], 'false'),
+        succeeded('Approval')
+      )
+    )
+  jobs:
+  - job: execute
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
 
-        - script: |
-            python scripts/fetch_rollback_metadata.py
-          displayName: "Fetch rollback metadata"
-          env:
-            AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
-            AZURE_BLOB_CONTAINER: rollback-metadata
-            AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-            REVERT_COMMIT: $(REVERT_COMMIT)
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'ddlartifact'
+        path: .
 
-        - script: |
-            python scripts/restore_from_backup.py
-          displayName: "Restore table from backup"
-          env:
-            DATABRICKS_HOST: $(Databricks_Host)
-            DATABRICKS_TOKEN: $(Databricks_Token)
-            DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: 'rollback-sql'
+        path: .
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+
+    - script: |
+        python -m pip install databricks-sql-connector azure-storage-blob
+      displayName: "Install Databricks + Azure SDK"
+
+    - script: |
+        python scripts/execute_ddl.py
+      displayName: "Execute DDL"
+      env:
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+        ROLLBACK_TYPE: $[ dependencies.AI.outputs['ai.SetOutput.ROLLBACK_TYPE'] ]
+        IS_DROP: $[ dependencies.AI.outputs['ai.SetOutput.IS_DROP'] ]
+        AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
+        AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
+        AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
+
+
+# ======================
+# STAGE 6: SCHEMA RECONCILIATION
+# ======================
+- stage: Reconcile
+  displayName: "Schema Reconciliation"
+  dependsOn: Execute
+  condition: succeeded('Execute')
+  jobs:
+  - job: reconcile
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - checkout: self
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+
+    - script: |
+        pip install databricks-sql-connector pyyaml
+        python scripts/reconcile_schema.py
+      displayName: "Run Reconciliation"
+      env:
+        AUTO_FIX: "false"
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
+
+# ======================
+# STAGE 7: AUTO ROLLBACK (GIT REVERT)
+# ======================
+- stage: AutoRollback
+  displayName: "Auto Rollback from Backup"
+  dependsOn: Detect
+  condition: |
+    and(
+      succeeded(),
+      eq(stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'], 'true')
+    )
+  jobs:
+  - job: rollback
+    pool:
+      vmImage: ubuntu-latest
+    variables:
+      REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
+    steps:
+    - checkout: self
+      fetchDepth: 0
+
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+
+    - script: |
+        python -m pip install azure-storage-blob databricks-sql-connector
+      displayName: "Install dependencies"
+
+    - script: |
+        python scripts/fetch_rollback_metadata.py
+      displayName: "Fetch rollback metadata"
+      env:
+        AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
+        AZURE_BLOB_CONTAINER: rollback-metadata
+        AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
+        REVERT_COMMIT: $(REVERT_COMMIT)
+
+    - task: DownloadPipelineArtifact@2
+      inputs:
+        artifact: rollback-sql
+        path: .
+      displayName: "Download rollback SQL"
+
+    - script: |
+        python scripts/restore_from_backup.py
+      displayName: "Restore from backup"
+      env:
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+        ROLLBACK_TYPE: "PARTIAL"

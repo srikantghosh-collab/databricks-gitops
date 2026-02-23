@@ -4,16 +4,18 @@ from openai import AzureOpenAI
 
 print("Starting AI DDL Classification...")
 
-# -----------------------------
+DDL_ARTIFACT = "ddl_output.json"
+
+# --------------------------------
 # Load DDL artifact
-# -----------------------------
-if not os.path.exists("ddl_output.json"):
+# --------------------------------
+if not os.path.exists(DDL_ARTIFACT):
     print("No ddl_output.json found — skipping classification")
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
     print("##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]NONE")
     exit(0)
 
-with open("ddl_output.json") as f:
+with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
 ddls = payload.get("ddls", [])
@@ -24,26 +26,31 @@ if not ddls:
     print("##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]NONE")
     exit(0)
 
-# -----------------------------
-# Prepare AI Input
-# -----------------------------
-ddl_statements = "\n".join([d["statement"] for d in ddls])
+# --------------------------------
+# Prepare AI input
+# --------------------------------
+ddl_statements = "\n".join(d["statement"] for d in ddls)
 
 system_prompt = """
 You are a Databricks Delta Lake DDL expert.
 
-You may return MULTIPLE comma-separated classifications if the DDL contains
-more than one type of operation.
+Classify the given DDL statements.
 
-Valid classifications:
-DROP_TABLE
-TRUNCATE_TABLE
-DESTRUCTIVE_ALTER
+You MUST return ONLY ONE of the following classifications:
+
 CREATE_TABLE
-SET_TBLPROPERTIES
-SAFE_ALTER
+ALTER_REVERSIBLE
+ALTER_IRREVERSIBLE
+DROP_TABLE
 
-Return ONLY the classification names, comma-separated if multiple.
+Rules:
+- CREATE TABLE → CREATE_TABLE
+- DROP TABLE → DROP_TABLE
+- ALTER TABLE that can be safely reversed (ADD COLUMN, RENAME COLUMN with mapping) → ALTER_REVERSIBLE
+- ALTER TABLE that can cause data loss or state loss (DROP COLUMN, ALTER TYPE, SET properties) → ALTER_IRREVERSIBLE
+
+Return ONLY the classification name.
+No explanations.
 """
 
 user_prompt = f"""
@@ -52,9 +59,9 @@ Classify the following DDL statements:
 {ddl_statements}
 """
 
-# -----------------------------
+# --------------------------------
 # Call Azure OpenAI
-# -----------------------------
+# --------------------------------
 client = AzureOpenAI(
     api_key=os.environ["AZURE_OPENAI_KEY"],
     azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
@@ -70,64 +77,48 @@ response = client.chat.completions.create(
     temperature=0
 )
 
-ai_raw = response.choices[0].message.content.strip().upper()
-print(f"AI raw classification: {ai_raw}")
-
-# -----------------------------
-# Parse multiple labels
-# -----------------------------
-ai_labels = [x.strip() for x in ai_raw.replace("\n", "").split(",") if x.strip()]
+ai_class = response.choices[0].message.content.strip().upper()
+print(f"AI classification: {ai_class}")
 
 VALID_CLASSES = {
-    "DROP_TABLE",
-    "TRUNCATE_TABLE",
-    "DESTRUCTIVE_ALTER",
     "CREATE_TABLE",
-    "SET_TBLPROPERTIES",
-    "SAFE_ALTER"
+    "ALTER_REVERSIBLE",
+    "ALTER_IRREVERSIBLE",
+    "DROP_TABLE"
 }
 
-ai_labels = [x for x in ai_labels if x in VALID_CLASSES]
+if ai_class not in VALID_CLASSES:
+    print("Invalid AI classification. Defaulting to ALTER_IRREVERSIBLE.")
+    ai_class = "ALTER_IRREVERSIBLE"
 
-if not ai_labels:
-    print("AI returned no valid classification. Defaulting to SAFE_ALTER.")
-    ai_labels = ["SAFE_ALTER"]
+# --------------------------------
+# Derive rollback behavior
+# --------------------------------
+if ai_class == "DROP_TABLE":
+    is_drop = True
+    rollback_type = "IRREVERSIBLE"
 
-# -----------------------------
-# PRIORITY DECISION (CRITICAL FIX)
-# -----------------------------
-PRIORITY_ORDER = [
-    "DROP_TABLE",
-    "TRUNCATE_TABLE",
-    "DESTRUCTIVE_ALTER",
-    "CREATE_TABLE",
-    "SET_TBLPROPERTIES",
-    "SAFE_ALTER"
-]
+elif ai_class == "ALTER_IRREVERSIBLE":
+    is_drop = False
+    rollback_type = "PARTIAL"
 
-final_classification = "SAFE_ALTER"
-for p in PRIORITY_ORDER:
-    if p in ai_labels:
-        final_classification = p
-        break
+elif ai_class in ("CREATE_TABLE", "ALTER_REVERSIBLE"):
+    is_drop = False
+    rollback_type = "REVERSIBLE"
 
-# -----------------------------
-# Determine IS_DROP
-# -----------------------------
-is_drop = final_classification in [
-    "DROP_TABLE",
-    "TRUNCATE_TABLE",
-    "DESTRUCTIVE_ALTER"
-]
+else:
+    is_drop = False
+    rollback_type = "NONE"
 
-# -----------------------------
-# Final logs (VERY IMPORTANT)
-# -----------------------------
-print("Resolved AI labels:", ai_labels)
-print("Final Classification:", final_classification)
+# --------------------------------
+# Final logs
+# --------------------------------
+print("Final Classification:", ai_class)
+print("Rollback Type:", rollback_type)
 print("Is Drop:", is_drop)
 
-# -----------------------------
-# Azure DevOps Output Variables
-# -----------------------------
+# --------------------------------
+# Azure DevOps output variables
+# --------------------------------
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
