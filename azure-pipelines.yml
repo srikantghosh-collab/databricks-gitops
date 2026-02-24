@@ -176,13 +176,13 @@ stages:
     - AI
   condition: |
     and(
-      succeeded('AI'),
-      ne(variables.PIPELINE_IS_REVERT, 'true'),
-      or(
-        eq(variables.PIPELINE_IS_DROP, 'false'),
-        succeeded('Approval')
-      )
+    succeeded('AI'),
+    ne(variables.PIPELINE_IS_REVERT, 'true'),
+    or(
+      succeeded('Approval'),
+      not(eq(stageDependencies.AI.ai.result, 'SucceededWithIssues'))
     )
+     )
   jobs:
   - job: execute
     pool:
