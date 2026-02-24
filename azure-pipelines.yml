@@ -269,7 +269,7 @@ stages:
   #condition: eq(variables.PIPELINE_IS_REVERT, 'true')
   condition: |
     eq(
-    stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],'yes'
+    stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],'yes'
     )
     
   variables:
