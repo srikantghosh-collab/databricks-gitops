@@ -267,7 +267,7 @@ stages:
 - stage: AutoRollback
   displayName: "Auto Rollback (Git Revert)"
   dependsOn: Detect
-  condition: eq(variables.PIPELINE_IS_REVERT, 'false')
+  condition: eq(variables.PIPELINE_IS_REVERT, 'true')
   jobs:
   - job: rollback
     pool:
