@@ -3,7 +3,7 @@ trigger:
 
 variables:
   PYTHON_VERSION: '3.10'
-
+  PIPELINE_IS_REVERT: 'false'
 # ======================
 # STAGE 1: DETECT
 # ======================
@@ -32,12 +32,18 @@ stages:
         python scripts/detect_revert.py
       name: detectrevert
       displayName: "Detect Git Revert"
-      
+
     - script: |
         echo "Promoting revert flags to pipeline scope"
-        echo "##vso[task.setvariable variable=PIPELINE_IS_REVERT]$(detectrevert.IS_REVERT)"
-        echo "##vso[task.setvariable variable=PIPELINE_REVERT_COMMIT]$(detectrevert.REVERT_COMMIT)"
+        echo "IS_REVERT = $IS_REVERT"
+        echo "REVERT_COMMIT = $REVERT_COMMIT"
+
+        echo "##vso[task.setvariable variable=PIPELINE_IS_REVERT]$IS_REVERT"
+        echo "##vso[task.setvariable variable=PIPELINE_REVERT_COMMIT]$REVERT_COMMIT"
       displayName: "Promote Revert Variables"
+      env:
+       IS_REVERT: $(detectrevert.IS_REVERT)
+       REVERT_COMMIT: $(detectrevert.REVERT_COMMIT)
 
     - task: PublishPipelineArtifact@1
       inputs:
