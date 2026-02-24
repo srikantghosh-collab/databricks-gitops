@@ -3,7 +3,7 @@ trigger:
 
 variables:
   PYTHON_VERSION: '3.10'
-  PIPELINE_IS_REVERT: 'false'
+  PIPELINE_IS_REVERT: 'true'
 
 # ======================
 # STAGE 1: DETECT
