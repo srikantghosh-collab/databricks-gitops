@@ -269,9 +269,9 @@ stages:
   # condition: eq(variables.PIPELINE_IS_REVERT, 'true')
   condition: |
     eq(
-    stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],
-    'true'
+    stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],True
     )
+    
   variables:
       # REVERT_COMMIT: $(PIPELINE_REVERT_COMMIT)
        REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
