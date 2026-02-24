@@ -263,93 +263,25 @@ stages:
 # ======================
 # STAGE 7: AUTO ROLLBACK (GIT REVERT)
 # ======================
-# - stage: AutoRollback
-#   displayName: "Auto Rollback (Git Revert)"
-#   dependsOn: Detect
-#   #condition: eq(variables.PIPELINE_IS_REVERT, 'true')
-#   condition: |
-#     eq(
-#     stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],'yes'
-#     )
-    
-#   variables:
-#       # REVERT_COMMIT: $(PIPELINE_REVERT_COMMIT)
-#        REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
-#   jobs:
-#   - job: rollback
-#     pool:
-#       vmImage: ubuntu-latest
-#     steps:
-#     - checkout: self
-#       fetchDepth: 0
-
-#     - task: UsePythonVersion@0
-#       inputs:
-#         versionSpec: $(PYTHON_VERSION)
-
-#     - script: |
-#         python -m pip install azure-storage-blob databricks-sql-connector
-#       displayName: "Install dependencies"
-
-#     - script: |
-#         python scripts/fetch_rollback_metadata.py
-#       displayName: "Fetch rollback metadata"
-#       env:
-#         AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
-#         AZURE_BLOB_CONTAINER: rollback-metadata
-#         AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-#         REVERT_COMMIT: $(REVERT_COMMIT)
-
-#     #  DATA restore (DROP)
-#     - script: |
-#         python scripts/restore_from_backup.py
-#       condition: eq(variables.PIPELINE_BACKUP_MODE, 'DATA')
-#       displayName: "Restore Table Data"
-#       env:
-#         DATABRICKS_HOST: $(Databricks_Host)
-#         DATABRICKS_TOKEN: $(Databricks_Token)
-#         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-
-#     #  STATE restore (ALTER / PROPERTIES)
-#     - script: |
-#         python scripts/restore_table_state.py
-#       condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
-#       displayName: "Restore Table State"
-#       env:
-#         DATABRICKS_HOST: $(Databricks_Host)
-#         DATABRICKS_TOKEN: $(Databricks_Token)
-#         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 - stage: AutoRollback
   displayName: "Auto Rollback (Git Revert)"
   dependsOn: Detect
-
-  # Stage condition
+  #condition: eq(variables.PIPELINE_IS_REVERT, 'true')
   condition: |
     eq(
-      stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],
-      'yes'
+    stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],'yes'
     )
-
+    
+  variables:
+      # REVERT_COMMIT: $(PIPELINE_REVERT_COMMIT)
+       REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
   jobs:
   - job: rollback
-    displayName: "Rollback Job"
     pool:
       vmImage: ubuntu-latest
-
-    variables:
-      REVERT_COMMIT: ${{ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] }}
-
     steps:
     - checkout: self
       fetchDepth: 0
-
-    # 🔎 DEBUG (VERY IMPORTANT – keep this for now)
-    - script: |
-        echo "DEBUG: IS_REVERT = $IS_REVERT"
-        echo "DEBUG: REVERT_COMMIT = $REVERT_COMMIT"
-      displayName: "Debug Revert Variables"
-      env:
-        IS_REVERT: ${{ stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'] }}
 
     - task: UsePythonVersion@0
       inputs:
@@ -368,7 +300,7 @@ stages:
         AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
         REVERT_COMMIT: $(REVERT_COMMIT)
 
-    # DATA restore (DROP)
+    #  DATA restore (DROP)
     - script: |
         python scripts/restore_from_backup.py
       condition: eq(variables.PIPELINE_BACKUP_MODE, 'DATA')
@@ -378,7 +310,7 @@ stages:
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
-    # STATE restore (ALTER / PROPERTIES)
+    #  STATE restore (ALTER / PROPERTIES)
     - script: |
         python scripts/restore_table_state.py
       condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
