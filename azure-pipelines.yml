@@ -267,16 +267,27 @@ stages:
   displayName: "Auto Rollback (Git Revert)"
   dependsOn: Detect
   #condition: eq(variables.PIPELINE_IS_REVERT, 'true')
-  condition: |
-    eq(
-    stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],'yes'
-    )
-    
   variables:
-      # REVERT_COMMIT: $(PIPELINE_REVERT_COMMIT)
-       REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
+    is_revert_str: $[ stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'] ]
+    REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
   jobs:
+
+  - job: debug
+    displayName: "Print Detect Output"
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - script: |
+        echo "is_revert_str value: $(is_revert_str)"
+        echo "revert commit: $(REVERT_COMMIT)"
+  
+    
   - job: rollback
+    dependsOn: debug
+    condition: |
+     eq(
+     stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],'yes'
+     )
     pool:
       vmImage: ubuntu-latest
     steps:
