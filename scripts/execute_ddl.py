@@ -82,16 +82,18 @@ print(f"Backup mode selected: {backup_mode}")
 # =================================================
 # Perform backup BEFORE execution
 # =================================================
-backed_up_tables = set()
+backed_up_tables = {}
 
 if backup_mode != "NONE":
+    # collect DDLs per table so we can provide the specific ddl_sql when doing state backups
     for item in ddls:
         table_name = extract_table_name(item["statement"])
         if table_name:
-            backed_up_tables.add(table_name)
+            ddl_stmt = item["statement"].strip()
+            backed_up_tables.setdefault(table_name, []).append(ddl_stmt)
 
     if backup_mode == "DATA_BACKUP":
-        for table in backed_up_tables:
+        for table in backed_up_tables.keys():
             print(f"DATA_BACKUP → {table}")
             subprocess.check_call(
                 ["python", "scripts/backup_before_drop.py"],
@@ -99,12 +101,13 @@ if backup_mode != "NONE":
             )
 
     elif backup_mode == "STATE_BACKUP":
-        for table in backed_up_tables:
-            print(f"STATE_BACKUP → {table}")
-            subprocess.check_call(
-                ["python", "scripts/capture_table_state.py"],
-                env={**os.environ, "TABLE_NAME": table, "COMMIT_ID": commit_id},
-            )
+        for table, ddl_list in backed_up_tables.items():
+            for ddl_sql in ddl_list:
+                print(f"STATE_BACKUP → {table}")
+                subprocess.check_call(
+                    ["python", "scripts/capture_table_state.py"],
+                    env={**os.environ, "TABLE_NAME": table, "DDL_SQL": ddl_sql, "COMMIT_ID": commit_id},
+                )
 
 # =================================================
 # Execute DDLs
