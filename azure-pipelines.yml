@@ -196,6 +196,7 @@ stages:
         path: .
 
     - task: DownloadPipelineArtifact@2
+      condition: ne(variables.PIPELINE_BACKUP_MODE, 'DATA')
       inputs:
         artifact: 'rollback-sql'
         path: .
