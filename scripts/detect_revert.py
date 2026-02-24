@@ -27,8 +27,10 @@ revert_commit = reverted or ""
 
 # Emit pipeline output variables (isOutput=true so they are available via dependencies / stageDependencies)
 # Use lowercase 'true'/'false' for consistency with YAML checks
+print("execution started")
 print(f"Detected git commit message: {msg}")
 print(f"##vso[task.setvariable variable=IS_REVERT;isOutput=true]{str(is_revert).lower()}")
+print(f"is_revert: {is_revert}")
 print(f"##vso[task.setvariable variable=REVERT_COMMIT;isOutput=true]{revert_commit}")
-
+print(f"revert_commit: {revert_commit}")
 # exit 0 so pipeline continues
