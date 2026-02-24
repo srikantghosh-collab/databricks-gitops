@@ -33,7 +33,7 @@ print("execution started")
 print(f"Detected git commit message: {msg}")
 #print(f"##vso[task.setvariable variable=IS_REVERT;isOutput=true]{str(is_revert).lower()}")
 print(f"##vso[task.setvariable variable=IS_REVERT;isOutput=true]{is_revert_str}")
-print(f"is_revert_str: {is_revert_str}")
+print(f"is_revert: {is_revert}")
 print(f"##vso[task.setvariable variable=REVERT_COMMIT;isOutput=true]{revert_commit}")
 print(f"revert_commit: {revert_commit}")
 # exit 0 so pipeline continues
