@@ -173,7 +173,7 @@ stages:
 - stage: Execute
   displayName: "Execute DDL"
   dependsOn:
-    - RollbackGen
+    - AI
   condition: |
     and(
       succeeded('AI'),
