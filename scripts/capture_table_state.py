@@ -131,7 +131,7 @@ if rollback_sql:
     print(rollback_sql)
 
     cursor.execute(f"""
-        INSERT INTO hive_metastore.default.ddl_state_backup VALUES (
+        INSERT INTO ddl_state_backup VALUES (
             current_timestamp(),
             '{COMMIT_ID}',
             '{TABLE_NAME}',
