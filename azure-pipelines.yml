@@ -177,7 +177,6 @@ stages:
         succeeded('Approval')
       )
     )
-    )
   jobs:
   - job: execute
     pool:
