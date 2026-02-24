@@ -88,15 +88,15 @@ stages:
         AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
     - script: |
-       echo "Promoting AI outputs to pipeline scope"
+        echo "Promoting AI outputs to pipeline scope"
 
-       echo "IS_DROP=$IS_DROP"
-       echo "BACKUP_MODE=$BACKUP_MODE"
-       echo "ROLLBACK_TYPE=$ROLLBACK_TYPE"
+        echo "IS_DROP=$IS_DROP"
+        echo "BACKUP_MODE=$BACKUP_MODE"
+        echo "ROLLBACK_TYPE=$ROLLBACK_TYPE"
 
-       echo "##vso[task.setvariable variable=PIPELINE_IS_DROP]$IS_DROP"
-       echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$BACKUP_MODE"
-       echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$ROLLBACK_TYPE"
+        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP]$IS_DROP"
+        echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$BACKUP_MODE"
+        echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$ROLLBACK_TYPE"
       displayName: "Promote AI Variables"
       env:
        IS_DROP: $(SetOutput.IS_DROP)
@@ -179,7 +179,7 @@ stages:
       succeeded('AI'),
       ne(variables.PIPELINE_IS_REVERT, 'true'),
       or(
-        ne(variables.PIPELINE_IS_DROP, 'false'),
+        eq(variables.PIPELINE_IS_DROP, 'false'),
         succeeded('Approval')
       )
     )
@@ -196,7 +196,7 @@ stages:
         path: .
 
     - task: DownloadPipelineArtifact@2
-      condition: ne(variables.PIPELINE_BACKUP_MODE, 'DATA')
+      condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
       inputs:
         artifact: 'rollback-sql'
         path: .
