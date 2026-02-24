@@ -179,7 +179,7 @@ stages:
       succeeded('AI'),
       ne(variables.PIPELINE_IS_REVERT, 'true'),
       or(
-        eq(variables.PIPELINE_IS_DROP, 'false'),
+        ne(variables.PIPELINE_IS_DROP, 'false'),
         succeeded('Approval')
       )
     )
