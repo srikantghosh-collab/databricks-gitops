@@ -28,7 +28,6 @@ commit_id = payload.get("commit_id") or subprocess.check_output(
     ["git", "rev-parse", "HEAD"], text=True
 ).strip()
 
-# Rollback decision from AI stage
 rollback_type = os.environ.get("ROLLBACK_TYPE", "NONE")
 is_drop = os.environ.get("IS_DROP", "false") == "true"
 
@@ -50,9 +49,8 @@ cursor.execute("USE SCHEMA default")
 print("Catalog & schema set")
 
 # =================================================
-# Helper functions
+# Helpers
 # =================================================
-
 def extract_table_name(ddl_sql):
     patterns = [
         r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([^\s(]+)",
@@ -67,62 +65,60 @@ def extract_table_name(ddl_sql):
             return m.group(1)
     return None
 
+# =================================================
+# Decide BACKUP MODE (ONCE PER COMMIT)
+# =================================================
+ddl_text = " ".join(d["statement"].upper() for d in ddls)
+
+if "DROP TABLE" in ddl_text:
+    backup_mode = "DATA_BACKUP"
+elif "ALTER TABLE" in ddl_text:
+    backup_mode = "STATE_BACKUP"
+else:
+    backup_mode = "NONE"
+
+print(f"Backup mode selected: {backup_mode}")
+
+# =================================================
+# Perform backup BEFORE execution
+# =================================================
+backed_up_tables = set()
+
+if backup_mode != "NONE":
+    for item in ddls:
+        table_name = extract_table_name(item["statement"])
+        if table_name:
+            backed_up_tables.add(table_name)
+
+    if backup_mode == "DATA_BACKUP":
+        for table in backed_up_tables:
+            print(f"DATA_BACKUP → {table}")
+            subprocess.check_call(
+                ["python", "scripts/backup_before_drop.py"],
+                env={**os.environ, "DDL_TABLE_NAME": table, "COMMIT_ID": commit_id},
+            )
+
+    elif backup_mode == "STATE_BACKUP":
+        for table in backed_up_tables:
+            print(f"STATE_BACKUP → {table}")
+            subprocess.check_call(
+                ["python", "scripts/capture_table_state.py"],
+                env={**os.environ, "TABLE_NAME": table, "COMMIT_ID": commit_id},
+            )
 
 # =================================================
 # Execute DDLs
 # =================================================
-
-backed_up_tables = set()
 failed = False
 error_msg = None
 
 for item in ddls:
     ddl_sql = item["statement"].strip()
-    ddl_upper = ddl_sql.upper()
-    table_name = extract_table_name(ddl_sql)
-
     try:
         print("\nExecuting DDL:")
         print(ddl_sql)
-
-        # -----------------------------------------
-        # Backup decision (AI driven)
-        # -----------------------------------------
-        need_backup = False
-
-        if ddl_upper.startswith("DROP TABLE"):
-            need_backup = True
-        elif ddl_upper.startswith("ALTER TABLE") and rollback_type in ("PARTIAL", "IRREVERSIBLE"):
-            need_backup = True
-
-        if need_backup:
-            if not table_name:
-                raise Exception("Backup required but table name could not be determined")
-
-            if table_name not in backed_up_tables:
-                print(f"Taking backup for table: {table_name}")
-
-                subprocess.check_call(
-                    ["python", "scripts/backup_before_drop.py"],
-                    env={**os.environ, "DDL_TABLE_NAME": table_name},
-                )
-
-                subprocess.check_call(
-                    ["python", "scripts/upload_rollback_metadata.py"],
-                    env={**os.environ, "COMMIT_ID": commit_id},
-                )
-
-                backed_up_tables.add(table_name)
-                print(f"Backup completed for table: {table_name}")
-
-        # -----------------------------------------
-        # Execute DDL
-        # -----------------------------------------
         cursor.execute(ddl_sql)
 
-        # -----------------------------------------
-        # Audit SUCCESS
-        # -----------------------------------------
         cursor.execute(f"""
             INSERT INTO ddl_audit_log VALUES (
                 current_timestamp(),
@@ -132,29 +128,10 @@ for item in ddls:
                 'SUCCESS'
             )
         """)
-        print("Audit log recorded: SUCCESS")
-
     except Exception as e:
         failed = True
         error_msg = str(e)
-
-        cursor.execute(f"""
-            INSERT INTO ddl_audit_log VALUES (
-                current_timestamp(),
-                '{commit_id}',
-                '{ddl_sql.replace("'", "''")}',
-                'EXECUTE',
-                'FAILED'
-            )
-        """)
-
-        print("Audit log recorded: FAILED")
-        print("DDL execution failed:", error_msg)
         break
-
-# =================================================
-# Cleanup
-# =================================================
 
 cursor.close()
 conn.close()
