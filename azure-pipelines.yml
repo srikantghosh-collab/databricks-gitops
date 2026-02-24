@@ -267,10 +267,10 @@ stages:
   displayName: "Auto Rollback (Git Revert)"
   dependsOn: Detect
   # condition: eq(variables.PIPELINE_IS_REVERT, 'true')
-  condition: |
-    eq(
-    stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],True
-    )
+  # condition: |
+  #   eq(
+  #   stageDependencies.Detect.detect.outputs['detectrevert.IS_REVERT'],True
+  #   )
     
   variables:
       # REVERT_COMMIT: $(PIPELINE_REVERT_COMMIT)
