@@ -1,30 +1,13 @@
-import os
-import glob
 from databricks import sql
+import os
 import sys
 
-print("Starting rollback restore process...")
+print("Starting rollback restore process ")
 
-# ----------------------------------------
-# Locate rollback SQL file
-# ----------------------------------------
-rollback_files = glob.glob("rollback_*.sql")
-
-if not rollback_files:
-    print("Rollback SQL file not found")
+REVERT_COMMIT = os.environ.get("REVERT_COMMIT")
+if not REVERT_COMMIT:
+    print("REVERT_COMMIT not provided")
     sys.exit(1)
-
-rollback_file = rollback_files[0]
-print(f"Using rollback file: {rollback_file}")
-
-with open(rollback_file) as f:
-    rollback_sql = f.read()
-
-# ----------------------------------------
-# Read rollback type
-# ----------------------------------------
-rollback_type = os.environ.get("ROLLBACK_TYPE", "NONE")
-print(f"Rollback type: {rollback_type}")
 
 # ----------------------------------------
 # Connect to Databricks
@@ -34,56 +17,79 @@ conn = sql.connect(
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
     access_token=os.environ["DATABRICKS_TOKEN"],
 )
-
 cursor = conn.cursor()
 cursor.execute("USE CATALOG hive_metastore")
 cursor.execute("USE SCHEMA default")
 
-# ----------------------------------------
-# Restore logic based on rollback type
-# ----------------------------------------
-if rollback_type in ("PARTIAL", "IRREVERSIBLE"):
+# =====================================================
+# 1️⃣ Try DATA restore first (DROP TABLE case)
+# =====================================================
+print("Checking DATA_BACKUP table...")
 
-    original_table = os.environ.get("ORIGINAL_TABLE")
-    backup_table = os.environ.get("BACKUP_TABLE")
+cursor.execute(f"""
+SELECT source_table, backup_table
+FROM ddl_data_backup
+WHERE commit_id = '{REVERT_COMMIT}'
+ORDER BY backup_time DESC
+LIMIT 1
+""")
 
-    if not original_table or not backup_table:
-        print("ORIGINAL_TABLE or BACKUP_TABLE env var not set")
-        sys.exit(1)
+row = cursor.fetchone()
 
-    print(f"Restoring table `{original_table}` from backup `{backup_table}`")
+if row:
+    source_table, backup_table = row
+    print(f"DATA_BACKUP found → restoring {source_table} from {backup_table}")
 
-    cursor.execute(f"DROP TABLE IF EXISTS {original_table}")
+    cursor.execute(f"DROP TABLE IF EXISTS {source_table}")
     cursor.execute(
-        f"CREATE TABLE {original_table} DEEP CLONE {backup_table}"
+        f"CREATE TABLE {source_table} DEEP CLONE {backup_table}"
     )
 
-    print("Table restored using DEEP CLONE")
+    print("DATA restore completed successfully")
+    cursor.close()
+    conn.close()
+    sys.exit(0)
 
-# ----------------------------------------
-# Execute rollback SQL if needed
-# ----------------------------------------
-if rollback_type in ("REVERSIBLE", "PARTIAL"):
+# =====================================================
+# 2️⃣ Try STATE restore (ALTER / PROPERTIES)
+# =====================================================
+print("No DATA_BACKUP found → checking STATE_BACKUP table...")
 
-    print("Executing rollback SQL statements...")
+cursor.execute(f"""
+SELECT rollback_sql
+FROM ddl_state_backup
+WHERE commit_id = '{REVERT_COMMIT}'
+ORDER BY backup_time DESC
+LIMIT 1
+""")
 
-    # Split statements safely
+row = cursor.fetchone()
+
+if row:
+    rollback_sql = row[0]
+    print("STATE_BACKUP found → executing rollback SQL")
+    print(rollback_sql)
+
     statements = [
         s.strip()
         for s in rollback_sql.split(";")
-        if s.strip() and not s.strip().startswith("--")
+        if s.strip()
     ]
 
     for stmt in statements:
         print(f"Executing: {stmt}")
         cursor.execute(stmt)
 
-    print("Rollback SQL executed successfully")
+    print("STATE restore completed successfully")
+    cursor.close()
+    conn.close()
+    sys.exit(0)
 
-# ----------------------------------------
-# Cleanup
-# ----------------------------------------
+# =====================================================
+# 3️⃣ Nothing to rollback
+# =====================================================
+print("No rollback data found → nothing to restore")
+
 cursor.close()
 conn.close()
-
-print("Rollback completed successfully")
+print("Rollback finished (no-op)")

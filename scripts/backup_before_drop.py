@@ -39,6 +39,16 @@ def backup_table(table_name, commit_id):
 
     print(f"Backup table created successfully: {backup_table_name}")
 
+    cursor.execute(f"""
+    INSERT INTO ddl_data_backup VALUES (
+       current_timestamp(),
+       '{commit_id}',
+       '{table_name}',
+       '{backup_table_name}',
+       'DATA'
+    )
+    """)
+
     # --------------------------------
     # Rollback metadata (restore-aware)
     # --------------------------------
