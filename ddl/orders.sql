@@ -18,5 +18,7 @@ ALTER TABLE employee_v73 SET TBLPROPERTIES (
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
 
-ALTER TABLE employee_v73 ADD COLUMNS (email STRING);
-ALTER TABLE employee_v73 RENAME COLUMN emp_name TO full_name;
+
+
+ALTER TABLE employee_v73 DROP COLUMN department;
+DROP TABLE employee_v73;
