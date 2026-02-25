@@ -71,6 +71,20 @@ def extract_table_name(ddl_sql):
             return m.group(1)
     return None
 
+def needs_column_mapping(ddl_upper: str) -> bool:
+    patterns = [
+        "RENAME COLUMN",
+        "CHANGE COLUMN",
+        "DROP COLUMN",
+        "REPLACE COLUMNS",
+        "ALTER COLUMN",
+    ]
+
+    # reorder cases
+    if "ALTER COLUMN" in ddl_upper and (" FIRST" in ddl_upper or " AFTER " in ddl_upper):
+        return True
+
+    return any(p in ddl_upper for p in patterns)
 # Column mapping Auto enabler
 
 def ensure_column_mapping_enabled(cursor, table_name):
@@ -154,7 +168,14 @@ error_msg = None
 
 for item in ddls:
     ddl_sql = item["statement"].strip()
+    ddl_upper = ddl_sql.upper()
+
+    table_name = extract_table_name(ddl_sql)
     try:
+
+        if table_name and needs_column_mapping(ddl_upper):
+            ensure_column_mapping_enabled(cursor, table_name)
+
         print("\nExecuting DDL:")
         print(ddl_sql)
         cursor.execute(ddl_sql)
