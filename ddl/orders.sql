@@ -1,5 +1,5 @@
 
-CREATE TABLE IF NOT EXISTS employee_v68
+CREATE TABLE IF NOT EXISTS employee_v68(
     emp_id INT,
     emp_name STRING,
     department STRING,
