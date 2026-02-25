@@ -6,6 +6,12 @@ import sys
 import subprocess
 
 print("Starting DDL execution...")
+is_revert = os.environ.get("PIPELINE_IS_REVERT", "no") == "yes"
+
+if is_revert:
+    print("Git revert detected → skipping Execute DDL & backups")
+    sys.exit(0)
+
 
 DDL_ARTIFACT = "ddl_output.json"
 

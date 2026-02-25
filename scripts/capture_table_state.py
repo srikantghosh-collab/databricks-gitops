@@ -5,6 +5,10 @@ import subprocess
 import re
 
 print("Starting STATE_BACKUP capture...")
+if os.environ.get("PIPELINE_IS_REVERT", "no") == "yes":
+    print("Git revert detected → skipping STATE_BACKUP")
+    sys.exit(0)
+
 
 # =================================================
 # Inputs
