@@ -212,7 +212,11 @@ stages:
     - script: |
         python scripts/capture_table_state.py
       displayName: "Capture Table State (STATE_BACKUP)"
-      condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
+      condition: |
+         and(
+         eq(variables.PIPELINE_BACKUP_MODE, 'STATE'),
+         ne(variables.PIPELINE_IS_REVERT, 'yes')
+          )
       env:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
