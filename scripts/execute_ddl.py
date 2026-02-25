@@ -71,6 +71,31 @@ def extract_table_name(ddl_sql):
             return m.group(1)
     return None
 
+# Column mapping Auto enabler
+
+def ensure_column_mapping_enabled(cursor, table_name):
+    try:
+        cursor.execute(f"SHOW TBLPROPERTIES {table_name}")
+        props = {row[0]: row[1] for row in cursor.fetchall()}
+        mode = props.get("delta.columnMapping.mode")
+
+        if mode == "name":
+            print(f"Column mapping already enabled for {table_name}")
+            return
+
+        print(f"Enabling column mapping for {table_name}...")
+
+        cursor.execute(f"""
+            ALTER TABLE {table_name}
+            SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name')
+        """)
+
+        print(f"Column mapping enabled for {table_name}")
+
+    except Exception as e:
+        print(f"Failed to enable column mapping: {e}")
+        raise
+
 # =================================================
 # Decide BACKUP MODE (ONCE PER COMMIT)
 # =================================================
@@ -107,13 +132,19 @@ if backup_mode != "NONE":
             )
 
     elif backup_mode == "STATE_BACKUP":
-        for table, ddl_list in backed_up_tables.items():
-            for ddl_sql in ddl_list:
-                print(f"STATE_BACKUP → {table}")
-                subprocess.check_call(
-                    ["python", "scripts/capture_table_state.py"],
-                    env={**os.environ, "TABLE_NAME": table, "DDL_SQL": ddl_sql, "COMMIT_ID": commit_id},
-                )
+     for table, ddl_list in backed_up_tables.items():
+        ddl_sql = ddl_list[-1]   
+        print(f"STATE_BACKUP (single) → {table}")
+
+        subprocess.check_call(
+            ["python", "scripts/capture_table_state.py"],
+            env={
+                **os.environ,
+                "TABLE_NAME": table,
+                "DDL_SQL": ddl_sql,
+                "COMMIT_ID": commit_id
+            },
+        )
 
 # =================================================
 # Execute DDLs
