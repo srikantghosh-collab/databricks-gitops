@@ -302,14 +302,6 @@ stages:
         python -m pip install azure-storage-blob databricks-sql-connector
       displayName: "Install dependencies"
 
-    - script: |
-        python scripts/fetch_rollback_metadata.py
-      displayName: "Fetch rollback metadata"
-      env:
-        AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
-        AZURE_BLOB_CONTAINER: rollback-metadata
-        AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-        REVERT_COMMIT: $(REVERT_COMMIT)
 
     #  DATA restore (DROP)
     - script: |
