@@ -176,7 +176,7 @@ stages:
   condition: |
     and(
     succeeded('AI'),
-    ne(variables.PIPELINE_IS_REVERT, 'true'),
+    ne(variables.PIPELINE_IS_REVERT, 'yes'),
     or(
       succeeded('Approval'),
       not(eq(stageDependencies.AI.ai.result, 'SucceededWithIssues'))
