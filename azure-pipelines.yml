@@ -284,8 +284,10 @@ stages:
     - script: |
         echo "is_revert_str value: $(is_revert_str)"
         echo "revert commit: $(REVERT_COMMIT)"
-  
-    
+        echo "pipeline_backup_mode: $(PIPELINE_BACKUP_MODE)"
+       
+
+
   - job: rollback
     dependsOn: debug
     condition: |
