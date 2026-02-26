@@ -19,4 +19,4 @@ ALTER TABLE employee_v76 SET TBLPROPERTIES (
 );
 
 
-
+ALTER TABLE employee_v76 DROP COLUMN department;

@@ -76,9 +76,9 @@ STRICT OUTPUT RULES (NON-NEGOTIABLE)
    - SQL statements
    - SQL comments starting with --
 
-   ❌ No markdown
-   ❌ No JSON
-   ❌ No explanations outside SQL comments
+    No markdown
+    No JSON
+    No explanations outside SQL comments
 
 3. NEVER hallucinate previous values.
    - If previous state is UNKNOWN, rollback MUST be PARTIAL or IRREVERSIBLE
