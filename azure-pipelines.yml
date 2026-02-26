@@ -92,7 +92,7 @@ stages:
     and(
       succeeded('AI'),
 
-      ne(stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'], 'DATA')
+      ne(stageDependencies.AI.ai.outputs['BACKUP_MODE'], 'DATA')
        )
   jobs:
   - job: rollback
@@ -130,7 +130,7 @@ stages:
   condition: |
     and(
       succeeded('AI'),
-      eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'true')
+      eq(stageDependencies.AI.ai.outputs['IS_DROP'], 'true')
     )
   jobs:
   - job: approval
@@ -157,7 +157,7 @@ stages:
     ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes'),
     or(
       eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'false'),
-      eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'true')
+        succeeded('Approval')
     )
     )
   jobs:
