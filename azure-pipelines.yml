@@ -92,8 +92,8 @@ stages:
     and(
       succeeded('AI'),
 
-      ne(stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'], 'DATA'),
-      
+      ne(stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'], 'DATA')
+       )
   jobs:
   - job: rollback
     pool:
