@@ -19,4 +19,4 @@ ALTER TABLE employee_v77 SET TBLPROPERTIES (
 );
 
 
-
+DROP TABLE employee_v77;

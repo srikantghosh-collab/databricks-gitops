@@ -274,6 +274,7 @@ stages:
   variables:
     is_revert_str: $[ stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'] ]
     REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
+    PIPELINE_BACKUP_MODE: $[ stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'] ]
   jobs:
 
   - job: debug
