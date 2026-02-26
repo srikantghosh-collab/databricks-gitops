@@ -147,7 +147,9 @@ stages:
 - stage: Execute
   displayName: "Execute DDL"
   dependsOn:
+    - Detect
     - AI
+    - Approval
   condition: |
     and(
     succeeded('Detect'),
