@@ -256,19 +256,10 @@ stages:
       displayName: "Install dependencies"
 
     - script: |
-        python scripts/restore_from_backup.py
-      condition: eq(variables.PIPELINE_BACKUP_MODE, 'DATA')
-      displayName: "Restore Table Data"
+       python scripts/restore_from_backup.py
+      displayName: "Auto Restore (DATA or STATE)"
       env:
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-
-    - script: |
-        python scripts/restore_table_state.py
-      condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
-      displayName: "Restore Table State"
-      env:
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+       REVERT_COMMIT: $(REVERT_COMMIT)
+       DATABRICKS_HOST: $(Databricks_Host)
+       DATABRICKS_TOKEN: $(Databricks_Token)
+       DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
