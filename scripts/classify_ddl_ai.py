@@ -120,9 +120,5 @@ print("Is Drop:", is_drop)
 # --------------------------------
 # Azure DevOps output variables
 # --------------------------------
-# Derive a backup mode value based on the determined rollback type to avoid undefined variable
-backup_mode_value = rollback_type
-
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
 print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
-print(f"##vso[task.setvariable variable=BACKUP_MODE;isOutput=true]{backup_mode_value}")
