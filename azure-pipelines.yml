@@ -40,9 +40,9 @@ stages:
   displayName: "AI DDL Classification"
   dependsOn: Detect
   condition: |
-    ne(
-      stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
-      'yes'
+    and(
+      succeeded(),
+      ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes')
     )
   jobs:
   - job: ai
@@ -150,13 +150,12 @@ stages:
   condition: |
     and(
       succeeded('AI'),
-      ne(
-        stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
+      ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
         'yes'
       ),
       or(
         succeeded('Approval'),
-        not(eq(stageDependencies.AI.ai.result, 'SucceededWithIssues'))
+        eq(variables.PIPELINE_IS_DROP, 'false'))
       )
     )
   jobs:
