@@ -14,7 +14,7 @@ stages:
   - job: detect
     displayName: "Detection Job"
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - checkout: self
       fetchDepth: 0
@@ -59,7 +59,7 @@ stages:
   - job: ai
     displayName: "AI Job"
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - checkout: self
 
@@ -115,7 +115,7 @@ stages:
   jobs:
   - job: rollback
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - checkout: self
 
@@ -185,7 +185,7 @@ stages:
   jobs:
   - job: execute
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - checkout: self
 
@@ -246,7 +246,7 @@ stages:
   jobs:
   - job: reconcile
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - checkout: self
 
@@ -282,7 +282,7 @@ stages:
   - job: debug
     displayName: "Print Detect Output"
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - script: |
         echo "is_revert_str value: $(is_revert_str)"
@@ -298,7 +298,7 @@ stages:
      stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],'yes'
      )
     pool:
-      vmImage: selfHostedPool
+      name: selfhostedpool
     steps:
     - checkout: self
       fetchDepth: 0
