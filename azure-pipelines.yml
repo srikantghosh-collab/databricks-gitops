@@ -80,7 +80,7 @@ stages:
     - script: |
         python scripts/classify_ddl_ai.py
       name: SetOutput
-      displayName: "Run AI Classification and export variables"
+      displayName: "Run AI Classification"
       env:
         AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
         AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
@@ -269,9 +269,7 @@ stages:
 # ======================
 - stage: AutoRollback
   displayName: "Auto Rollback (Git Revert)"
-  dependsOn: 
-     - Detect
-     - AI
+  dependsOn: Detect
   #condition: eq(variables.PIPELINE_IS_REVERT, 'true')
   variables:
     is_revert_str: $[ stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'] ]
