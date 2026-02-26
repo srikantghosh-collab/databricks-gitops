@@ -154,8 +154,8 @@ stages:
         'yes'
       ),
       or(
-        succeeded('Approval'),
-        eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'false')
+        eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'false'),
+         succeeded('Approval')
       )
     )
   jobs:
