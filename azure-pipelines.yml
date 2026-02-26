@@ -39,6 +39,11 @@ stages:
 - stage: AI
   displayName: "AI DDL Classification"
   dependsOn: Detect
+  condition: |
+    ne(
+      stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
+      'yes'
+    )
   jobs:
   - job: ai
     displayName: "AI Job"
@@ -145,7 +150,10 @@ stages:
   condition: |
     and(
       succeeded('AI'),
-      ne(variables.PIPELINE_IS_REVERT, 'yes'),
+      ne(
+        stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
+        'yes'
+      ),
       or(
         succeeded('Approval'),
         not(eq(stageDependencies.AI.ai.result, 'SucceededWithIssues'))
@@ -221,30 +229,22 @@ stages:
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
 # ======================
-# STAGE 7: AUTO ROLLBACK
+# STAGE 7: AUTO ROLLBACK (GIT REVERT)
 # ======================
 - stage: AutoRollback
   displayName: "Auto Rollback (Git Revert)"
-  dependsOn:
-    - Detect
-    - AI
+  dependsOn: Detect
+  condition: |
+    eq(
+      stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
+      'yes'
+    )
   variables:
-    is_revert_str: $[ stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'] ]
     REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
-    PIPELINE_BACKUP_MODE: $[ stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'] ]
-  jobs:
-  - job: debug
-    pool:
-      name: selfhostedpool
-    steps:
-    - script: |
-        echo "is_revert_str=$(is_revert_str)"
-        echo "REVERT_COMMIT=$(REVERT_COMMIT)"
-        echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
 
+  jobs:
   - job: rollback
-    dependsOn: debug
-    condition: eq(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],'yes')
+    displayName: "Auto Restore (DATA or STATE)"
     pool:
       name: selfhostedpool
     steps:
@@ -252,14 +252,14 @@ stages:
       fetchDepth: 0
 
     - script: |
-        python -m pip install azure-storage-blob databricks-sql-connector
+        python -m pip install databricks-sql-connector
       displayName: "Install dependencies"
 
     - script: |
-       python scripts/restore_from_backup.py
+        python scripts/restore_from_backup.py
       displayName: "Auto Restore (DATA or STATE)"
       env:
-       REVERT_COMMIT: $(REVERT_COMMIT)
-       DATABRICKS_HOST: $(Databricks_Host)
-       DATABRICKS_TOKEN: $(Databricks_Token)
-       DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+        REVERT_COMMIT: $(REVERT_COMMIT)
+        DATABRICKS_HOST: $(Databricks_Host)
+        DATABRICKS_TOKEN: $(Databricks_Token)
+        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
