@@ -160,7 +160,8 @@ stages:
     - Approval
   condition: |
     and(
-      succeeded(),
+      succeeded('Detect'),
+      succeeded('AI'),
       ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes'),
       or(
         eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'false'),
