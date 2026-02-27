@@ -85,7 +85,7 @@ stages:
     -  script: |
         echo "PIPELINE_IS_REVERT=$PIPELINE_IS_REVERT"
         echo "PIPELINE_IS_DROP=$PIPELINE_IS_DROP"
-        echo "PIPELINE_BACKUP_MODE=$PIPELINE_BACKUP_MODE"
+        
 
 # ======================
 # STAGE 3: GENERATE ROLLBACK SCRIPT
@@ -161,7 +161,7 @@ stages:
     and(
     succeeded('Detect'),
     succeeded('AI'),
-    ne(variables.PIPELINE_IS_REVERT, 'yes'),
+    eq(variables.PIPELINE_IS_REVERT, 'no'),
     or(
       eq(variables.PIPELINE_IS_DROP, 'false'),
       succeeded('Approval')
