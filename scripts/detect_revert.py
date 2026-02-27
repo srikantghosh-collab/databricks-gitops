@@ -36,5 +36,5 @@ print(f"##vso[task.setvariable variable=is_revert_str;isOutput=true]{is_revert_s
 print(f"is_revert: {is_revert}")
 print(f"##vso[task.setvariable variable=REVERT_COMMIT;isOutput=true]{revert_commit}")
 print(f"revert_commit: {revert_commit}")
-print(f"##vso[task.setvariable variable=PIPELINE_IS_REVERT;isOutput=true]{is_revert_str}")
+print(f"##vso[task.setvariable variable=PIPELINE_IS_REVERT;]{is_revert_str}")
 # exit 0 so pipeline continues
