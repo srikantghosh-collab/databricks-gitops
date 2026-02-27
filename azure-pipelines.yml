@@ -73,7 +73,7 @@ stages:
         AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
     -  script: |
-        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP:IS_DROP]$(SetOutput.IS_DROP)"
+        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP]$(SetOutput.IS_DROP)"
         echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$(SetOutput.BACKUP_MODE)"
         echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$(SetOutput.ROLLBACK_TYPE)"
        displayName: "Promote AI Variables"
@@ -160,9 +160,8 @@ stages:
     - Approval
   condition: |
     and(
-    succeeded('Detect'),
-    succeeded('AI'),
-    ne(variables.PIPELINE_IS_REVERT, 'yes'),
+      succeeded(),
+      ne(variables.PIPELINE_IS_REVERT, 'yes'),
     or(
       eq(variables.PIPELINE_IS_DROP, 'false'),
         succeeded('Approval')
