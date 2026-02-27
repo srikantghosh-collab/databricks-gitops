@@ -159,12 +159,12 @@ stages:
     - AI
     - Approval
   condition: |
-   and(
+    and(
     succeeded('Detect'),
     succeeded('AI'),
-    ne(variables.PIPELINE_IS_REVERT, 'yes'),
+    ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes'),
     or(
-      eq(variables.PIPELINE_IS_DROP, 'false'),
+      eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'false'),
       succeeded('Approval')
     )
     )
