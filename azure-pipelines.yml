@@ -73,9 +73,9 @@ stages:
         AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
     -  script: |
-        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP]$(SetOutput.IS_DROP)"
-        echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$(SetOutput.BACKUP_MODE)"
-        echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$(SetOutput.ROLLBACK_TYPE)"
+        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP;isOutput=true]$(SetOutput.IS_DROP)"
+        echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE;isOutput=true]$(SetOutput.BACKUP_MODE)"
+        echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE;isOutput=true]$(SetOutput.ROLLBACK_TYPE)"
        displayName: "Promote AI Variables"
        env:
         IS_DROP: $(SetOutput.IS_DROP)
@@ -83,9 +83,9 @@ stages:
         ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
     - script: |
-        echo "PIPELINE_IS_DROP=$(PIPELINE_IS_DROP)"
-        echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
-        echo "PIPELINE_IS_REVERT=$(PIPELINE_IS_REVERT)"
+       echo "IS_REVERT_STR = $(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'])"
+       echo "IS_DROP        = $(stageDependencies.AI.ai.outputs['SetOutput.PIPELINE_IS_DROP'])"
+       echo "BACKUP_MODE    = $(stageDependencies.AI.ai.outputs['SetOutput.PIPELINE_BACKUP_MODE'])"
       displayName: "DEBUG - Pipeline Variables"
 
 # ======================
@@ -98,7 +98,7 @@ stages:
     and(
       succeeded('AI'),
 
-      ne(stageDependencies.AI.ai.outputs['BACKUP_MODE'], 'DATA')
+      ne(stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'], 'DATA')
        )
   jobs:
   - job: rollback
@@ -157,15 +157,16 @@ stages:
   dependsOn:
     - Detect
     - AI
+    - Approval
   condition: |
     and(
       succeeded('Detect'),
       succeeded('AI'),
       ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes'),
       or(
-        eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'false'),
-        
-        eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'true')
+        eq(stageDependencies.AI.ai.outputs['SetOutput.PIPELINE_IS_DROP'], 'false'),
+            succeeded('Approval')
+
     )
     )
   jobs:
