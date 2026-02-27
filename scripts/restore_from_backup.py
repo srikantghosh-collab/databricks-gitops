@@ -4,6 +4,12 @@ import sys
 
 print("Starting rollback restore process ")
 
+# Read pipeline revert flag from the environment (default to "no")
+PIPELINE_IS_REVERT = os.environ.get("PIPELINE_IS_REVERT", "no").lower()
+if PIPELINE_IS_REVERT != "yes":
+    print("Not a revert → no-op")
+    sys.exit(0)
+
 REVERT_COMMIT = os.environ.get("REVERT_COMMIT")
 if not REVERT_COMMIT:
     print("REVERT_COMMIT not provided")

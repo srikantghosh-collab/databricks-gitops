@@ -157,16 +157,7 @@ stages:
     - Detect
     - AI
     - Approval
-  condition: |
-    and(
-    succeeded('Detect'),
-    succeeded('AI'),
-    eq(variables.PIPELINE_IS_REVERT, 'no'),
-    or(
-      eq(variables.PIPELINE_IS_DROP, 'false'),
-      succeeded('Approval')
-    )
-    )
+  
   jobs:
   - job: execute
     pool:
@@ -213,7 +204,7 @@ stages:
         AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
         AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
         AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-
+        PIPELINE_IS_REVERT: $(PIPELINE_IS_REVERT)
 # ======================
 # STAGE 6: RECONCILE
 # ======================
@@ -273,3 +264,4 @@ stages:
         DATABRICKS_HOST: $(Databricks_Host)
         DATABRICKS_TOKEN: $(Databricks_Token)
         DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+        PIPELINE_IS_REVERT: $(PIPELINE_IS_REVERT)
