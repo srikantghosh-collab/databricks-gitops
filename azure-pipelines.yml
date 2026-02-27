@@ -157,7 +157,6 @@ stages:
   dependsOn:
     - Detect
     - AI
-    - Approval
   condition: |
     and(
       succeeded('Detect'),
