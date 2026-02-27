@@ -82,6 +82,12 @@ stages:
         BACKUP_MODE: $(SetOutput.BACKUP_MODE)
         ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
+    - script: |
+        echo "PIPELINE_IS_DROP=$(PIPELINE_IS_DROP)"
+        echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
+        echo "PIPELINE_IS_REVERT=$(PIPELINE_IS_REVERT)"
+      displayName: "DEBUG - Pipeline Variables"
+
 # ======================
 # STAGE 3: GENERATE ROLLBACK SCRIPT
 # ======================
@@ -120,6 +126,8 @@ stages:
         targetPath: $(System.DefaultWorkingDirectory)
         artifact: rollback-sql
       displayName: "Publish Rollback SQL"
+
+    
 
 # ======================
 # STAGE 4: MANUAL APPROVAL
@@ -167,11 +175,7 @@ stages:
     steps:
     - checkout: self
 
-    - script: |
-        echo "PIPELINE_IS_DROP=$(PIPELINE_IS_DROP)"
-        echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
-        echo "PIPELINE_IS_REVERT=$(PIPELINE_IS_REVERT)"
-      displayName: "DEBUG - Pipeline Variables"
+    
 
     - task: DownloadPipelineArtifact@2
       inputs:
