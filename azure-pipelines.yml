@@ -82,11 +82,10 @@ stages:
         BACKUP_MODE: $(SetOutput.BACKUP_MODE)
         ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
-    - script: |
-        echo "PIPELINE_IS_REVERT=$(PIPELINE_IS_REVERT)"
-        echo "PIPELINE_IS_DROP=$(PIPELINE_IS_DROP)"
-        echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
-      displayName: "DEBUG - Pipeline Variables"
+    -  script: |
+        echo "PIPELINE_IS_REVERT=$PIPELINE_IS_REVERT"
+        echo "PIPELINE_IS_DROP=$PIPELINE_IS_DROP"
+        echo "PIPELINE_BACKUP_MODE=$PIPELINE_BACKUP_MODE"
 
 # ======================
 # STAGE 3: GENERATE ROLLBACK SCRIPT
