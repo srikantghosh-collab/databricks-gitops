@@ -1,271 +1,243 @@
 trigger:
   - main
 
-# ======================
-# STAGE 1: DETECT
-# ======================
 stages:
-- stage: Detect
-  displayName: "Detect DDL Changes"
-  jobs:
-  - job: detect
-    displayName: "Detection Job"
-    pool:
-      name: selfhostedpool
-    steps:
-    - checkout: self
-      fetchDepth: 0
+  - stage: Detect
+    displayName: "Detect DDL Changes"
+    jobs:
+      - job: detect
+        displayName: "Detection Job"
+        pool:
+          name: selfhostedpool
+        steps:
+          - checkout: self
+            fetchDepth: 0
 
-    - script: |
-        python --version
-        python scripts/detect_ddl.py
-      name: detectddl
-      displayName: "Detect DDL"
+          - script: |
+              python --version
+              python scripts/detect_ddl.py
+            name: detectddl
+            displayName: "Detect DDL"
 
-    - script: |
-        python scripts/detect_revert.py
-      name: detectrevert
-      displayName: "Detect Git Revert"
+          - script: |
+              python scripts/detect_revert.py
+            name: detectrevert
+            displayName: "Detect Git Revert"
 
-    - task: PublishPipelineArtifact@1
-      inputs:
-        targetPath: 'ddl_output.json'
-        artifact: 'ddlartifact'
-      displayName: "Publish DDL Artifact"
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: 'ddl_output.json'
+              artifact: 'ddlartifact'
+            displayName: "Publish DDL Artifact"
 
-# ======================
-# STAGE 2: AI CLASSIFICATION
-# ======================
-- stage: AI
-  displayName: "AI DDL Classification"
-  dependsOn: Detect
-  condition: |
-    and(
-      succeeded(),
-      ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes')
-    )
-  jobs:
-  - job: ai
-    displayName: "AI Job"
-    pool:
-      name: selfhostedpool
-    steps:
-    - checkout: self
+  - stage: AI
+    displayName: "AI DDL Classification"
+    dependsOn: Detect
+    jobs:
+      - job: ai
+        displayName: "AI Job"
+        pool:
+          name: selfhostedpool
+        steps:
+          - checkout: self
 
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: 'ddlartifact'
-        path: .
-      displayName: "Download DDL Artifact"
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
+            displayName: "Download DDL Artifact"
 
-    - script: |
-        python -m pip install -U pip
-        python -m pip install "openai>=1.30.0"
-      displayName: "Install Azure OpenAI SDK"
+          - script: |
+              python -m pip install -U pip
+              python -m pip install "openai>=1.30.0"
+            displayName: "Install Azure OpenAI SDK"
 
-    - script: |
-        python scripts/classify_ddl_ai.py
-      name: SetOutput
-      displayName: "Run AI Classification"
-      env:
-        AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
-        AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
-        AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+          - script: |
+              python scripts/classify_ddl_ai.py
+            name: SetOutput
+            displayName: "Run AI Classification"
+            env:
+              AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+              AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+              AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
-    - script: |
-        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP]$(SetOutput.IS_DROP)"
-        echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$(SetOutput.BACKUP_MODE)"
-      displayName: "Promote AI Variables"
+          - script: |
+              echo "##vso[task.setvariable variable=PIPELINE_IS_DROP]$IS_DROP"
+              echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$BACKUP_MODE"
+              echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$ROLLBACK_TYPE"
+            displayName: "Promote AI Variables"
+            env:
+              IS_DROP: $(SetOutput.IS_DROP)
+              BACKUP_MODE: $(SetOutput.BACKUP_MODE)
+              ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
-      env:
-        IS_DROP: $(SetOutput.IS_DROP)
-        BACKUP_MODE: $(SetOutput.BACKUP_MODE)
-        ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
-
-    -  script: |
-        echo "PIPELINE_IS_REVERT=$PIPELINE_IS_REVERT"
-        echo "PIPELINE_IS_DROP=$PIPELINE_IS_DROP"
-        
-
-# ======================
-# STAGE 3: GENERATE ROLLBACK SCRIPT
-# ======================
-- stage: RollbackGen
-  displayName: "Generate AI Rollback SQL"
-  dependsOn: AI
-  condition: |
-    and(
-      succeeded('AI'),
-
-      ne(stageDependencies.AI.ai.outputs['SetOutput.BACKUP_MODE'], 'DATA')
-       )
-  jobs:
-  - job: rollback
-    pool:
-      name: selfhostedpool
-    steps:
-    - checkout: self
-
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: 'ddlartifact'
-        path: .
-
-    - script: |
-        python -m pip install "openai>=1.30.0"
-        python scripts/ai_rollback_generator.py
-      displayName: "Generate Rollback SQL"
-      env:
-        AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
-        AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
-        AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
-
-    - task: PublishPipelineArtifact@1
-      inputs:
-        targetPath: $(System.DefaultWorkingDirectory)
-        artifact: rollback-sql
-      displayName: "Publish Rollback SQL"
-
-    
-
-# ======================
-# STAGE 4: MANUAL APPROVAL
-# ======================
-- stage: Approval
-  displayName: "Manual Approval for DROP"
-  dependsOn: AI
-  condition: |
-    and(
-      succeeded('AI'),
-      eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'true')
-    )
-  jobs:
-  - job: approval
-    pool: server
-    steps:
-    - task: ManualValidation@0
-      inputs:
-        instructions: "DROP or irreversible DDL detected. Approve to continue."
-        timeoutInMinutes: 1440
-
-# ======================
-# STAGE 5: EXECUTE DDL
-# ======================
-- stage: Execute
-  displayName: "Execute DDL"
-  dependsOn:
-    - Detect
-    - AI
-    - Approval
-  
-  jobs:
-  - job: execute
-    pool:
-      name: selfhostedpool
+  - stage: RollbackGen
+    displayName: "Generate AI Rollback SQL"
+    dependsOn: AI
     condition: |
       and(
-        succeeded('Detect'),
-        succeeded('AI'),
-        ne(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
+        succeeded(),
+        ne(variables.PIPELINE_BACKUP_MODE, 'DATA')
       )
-    steps:
-    - checkout: self
+    jobs:
+      - job: rollback
+        pool:
+          name: selfhostedpool
+        steps:
+          - checkout: self
 
-    - task: DownloadPipelineArtifact@2
-      inputs:
-        artifact: 'ddlartifact'
-        path: .
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
 
-    - task: DownloadPipelineArtifact@2
-      condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
-      inputs:
-        artifact: 'rollback-sql'
-        path: .
+          - script: |
+              python -m pip install "openai>=1.30.0"
+              python scripts/ai_rollback_generator.py
+            displayName: "Generate Rollback SQL"
+            env:
+              AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+              AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+              AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
-    - script: |
-        python -m pip install databricks-sql-connector azure-storage-blob
-      displayName: "Install Databricks + Azure SDK"
+          - task: PublishPipelineArtifact@1
+            inputs:
+              targetPath: $(System.DefaultWorkingDirectory)
+              artifact: rollback-sql
+            displayName: "Publish Rollback SQL"
 
-    - script: |
-        python scripts/capture_table_state.py
-      condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
-      displayName: "Capture Table State"
-      env:
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+  - stage: Approval
+    displayName: "Manual Approval for DROP"
+    dependsOn: AI
+    condition: |
+      and(
+        succeeded(),
+        eq(variables.PIPELINE_IS_DROP, 'true')
+      )
+    jobs:
+      - job: approval
+        pool: server
+        steps:
+          - task: ManualValidation@0
+            inputs:
+              instructions: "DROP or irreversible DDL detected. Approve to continue."
+              timeoutInMinutes: 1440
 
-    - script: |
-        python scripts/execute_ddl.py
-      displayName: "Execute DDL"
-      env:
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-        ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
-        IS_DROP: $(PIPELINE_IS_DROP)
-        BACKUP_MODE: $(PIPELINE_BACKUP_MODE)
-        AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
-        AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
-        AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
-        PIPELINE_IS_REVERT: $(PIPELINE_IS_REVERT)
-# ======================
-# STAGE 6: RECONCILE
-# ======================
-- stage: Reconcile
-  displayName: "Schema Reconciliation"
-  dependsOn: Execute
-  condition: succeeded('Execute')
-  jobs:
-  - job: reconcile
-    pool:
-      name: selfhostedpool
-    steps:
-    - checkout: self
+  - stage: Execute
+    displayName: "Execute DDL"
+    dependsOn:
+      - AI
+    condition: |
+      and(
+        succeeded('AI'),
+        ne(variables.PIPELINE_IS_REVERT, 'yes'),
+        or(
+          succeeded('Approval'),
+          not(eq(stageDependencies.AI.ai.result, 'SucceededWithIssues'))
+        )
+      )
+    jobs:
+      - job: execute
+        pool:
+          name: selfhostedpool
+        steps:
+          - checkout: self
 
-    - script: |
-        python -m pip install databricks-sql-connector pyyaml
-        python scripts/reconcile_schema.py
-      displayName: "Run Reconciliation"
-      env:
-        AUTO_FIX: "false"
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
 
-# ======================
-# STAGE 7: AUTO ROLLBACK (GIT REVERT)
-# ======================
-- stage: AutoRollback
-  displayName: "Auto Rollback (Git Revert)"
-  dependsOn: Detect
-  condition: |
-    eq(
-      stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],
-      'yes'
-    )
-  variables:
-    REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
+          - task: DownloadPipelineArtifact@2
+            condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
+            inputs:
+              artifact: 'rollback-sql'
+              path: .
 
-  jobs:
-  - job: rollback
-    displayName: "Auto Restore (DATA or STATE)"
-    pool:
-      name: selfhostedpool
-    steps:
-    - checkout: self
-      fetchDepth: 0
+          - script: |
+              python -m pip install databricks-sql-connector azure-storage-blob
+            displayName: "Install Databricks + Azure SDK"
 
-    - script: |
-        python -m pip install databricks-sql-connector
-      displayName: "Install dependencies"
+          - script: |
+              python scripts/capture_table_state.py
+            condition: eq(variables.PIPELINE_BACKUP_MODE, 'STATE')
+            displayName: "Capture Table State"
+            env:
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
 
-    - script: |
-        python scripts/restore_from_backup.py
-      displayName: "Auto Restore (DATA or STATE)"
-      env:
-        REVERT_COMMIT: $(REVERT_COMMIT)
-        DATABRICKS_HOST: $(Databricks_Host)
-        DATABRICKS_TOKEN: $(Databricks_Token)
-        DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-        PIPELINE_IS_REVERT: $(PIPELINE_IS_REVERT)
+          - script: |
+              python scripts/execute_ddl.py
+            displayName: "Execute DDL"
+            env:
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+              ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
+              IS_DROP: $(PIPELINE_IS_DROP)
+              BACKUP_MODE: $(PIPELINE_BACKUP_MODE)
+              AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
+              AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
+              AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
+
+  - stage: Reconcile
+    displayName: "Schema Reconciliation"
+    dependsOn: Execute
+    condition: succeeded('Execute')
+    jobs:
+      - job: reconcile
+        pool:
+          name: selfhostedpool
+        steps:
+          - checkout: self
+
+          - script: |
+              python -m pip install databricks-sql-connector pyyaml
+              python scripts/reconcile_schema.py
+            displayName: "Run Reconciliation"
+            env:
+              AUTO_FIX: "false"
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+
+  - stage: AutoRollback
+    displayName: "Auto Rollback (Git Revert)"
+    dependsOn:
+      - Detect
+      - AI
+    variables:
+      is_revert_str: $[ stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'] ]
+      REVERT_COMMIT: $[ stageDependencies.Detect.detect.outputs['detectrevert.REVERT_COMMIT'] ]
+    jobs:
+      - job: debug
+        pool:
+          name: selfhostedpool
+        steps:
+          - script: |
+              echo "is_revert_str=$(is_revert_str)"
+              echo "REVERT_COMMIT=$(REVERT_COMMIT)"
+              echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
+
+      - job: rollback
+        dependsOn: debug
+        condition: eq(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'],'yes')
+        pool:
+          name: selfhostedpool
+        steps:
+          - checkout: self
+            fetchDepth: 0
+
+          - script: |
+              python -m pip install azure-storage-blob databricks-sql-connector
+            displayName: "Install dependencies"
+
+          - script: |
+              python scripts/restore_from_backup.py
+            displayName: "Auto Restore (DATA or STATE)"
+            env:
+              REVERT_COMMIT: $(REVERT_COMMIT)
+              DATABRICKS_HOST: $(Databricks_Host)
+              DATABRICKS_TOKEN: $(Databricks_Token)
+              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
