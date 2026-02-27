@@ -162,10 +162,14 @@ stages:
   - job: execute
     pool:
       name: selfhostedpool
+    condition: |
+      and(
+        succeeded('Detect'),
+        succeeded('AI'),
+        ne(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
+      )
     steps:
     - checkout: self
-
-    
 
     - task: DownloadPipelineArtifact@2
       inputs:
