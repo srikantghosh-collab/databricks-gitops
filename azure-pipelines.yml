@@ -73,9 +73,9 @@ stages:
         AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
     -  script: |
-        echo "##vso[task.setvariable variable=IS_DROP;isOutput=true]$IS_DROP"
-        echo "##vso[task.setvariable variable=BACKUP_MODE;isOutput=true]$BACKUP_MODE"
-        echo "##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]$ROLLBACK_TYPE"
+        echo "##vso[task.setvariable variable=PIPELINE_IS_DROP:IS_DROP]$(SetOutput.IS_DROP)"
+        echo "##vso[task.setvariable variable=PIPELINE_BACKUP_MODE]$(SetOutput.BACKUP_MODE)"
+        echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$(SetOutput.ROLLBACK_TYPE)"
        displayName: "Promote AI Variables"
        env:
         IS_DROP: $(SetOutput.IS_DROP)
@@ -154,9 +154,9 @@ stages:
     and(
     succeeded('Detect'),
     succeeded('AI'),
-    ne(stageDependencies.Detect.detect.outputs['detectrevert.is_revert_str'], 'yes'),
+    ne(variables.PIPELINE_IS_REVERT, 'yes'),
     or(
-      eq(stageDependencies.AI.ai.outputs['IS_DROP'], 'false'),
+      eq(variables.PIPELINE_IS_DROP, 'false'),
         succeeded('Approval')
     )
     )
@@ -166,6 +166,12 @@ stages:
       name: selfhostedpool
     steps:
     - checkout: self
+
+    - script: |
+        echo "PIPELINE_IS_DROP=$(PIPELINE_IS_DROP)"
+        echo "PIPELINE_BACKUP_MODE=$(PIPELINE_BACKUP_MODE)"
+        echo "PIPELINE_IS_REVERT=$(PIPELINE_IS_REVERT)"
+      displayName: "DEBUG - Pipeline Variables"
 
     - task: DownloadPipelineArtifact@2
       inputs:
