@@ -24,6 +24,12 @@ stages:
             name: detectrevert
             displayName: "Detect Git Revert"
 
+          - script: |
+              echo "##vso[task.setvariable variable=PIPELINE_IS_REVERT_GLOBAL]$PIPELINE_IS_REVERT"
+            displayName: "Promote Revert Variable"
+            env:
+              PIPELINE_IS_REVERT: $[ stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'] ]
+
           - task: PublishPipelineArtifact@1
             inputs:
               targetPath: 'ddl_output.json'
@@ -127,11 +133,16 @@ stages:
     displayName: "Execute DDL"
     dependsOn:
       - AI
+    # condition: |
+    #   and(
+    #     succeeded('AI'),
+    #     ne( stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
+    #   )
     condition: |
-      and(
-        succeeded('AI'),
-        ne( stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
-      )
+     and(
+       succeeded('AI'),
+       ne(variables.PIPELINE_IS_REVERT_GLOBAL, 'yes')
+     )
     jobs:
       - job: execute
         pool:
