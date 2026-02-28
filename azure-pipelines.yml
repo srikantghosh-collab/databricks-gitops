@@ -24,11 +24,6 @@ stages:
             name: detectrevert
             displayName: "Detect Git Revert"
 
-          - script: |
-              echo "##vso[task.setvariable variable=PIPELINE_IS_REVERT_GLOBAL]$PIPELINE_IS_REVERT"
-            displayName: "Promote Revert Variable"
-            env:
-              PIPELINE_IS_REVERT: $[ stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'] ]
 
           - task: PublishPipelineArtifact@1
             inputs:
@@ -83,7 +78,7 @@ stages:
     condition: |
      and(
      succeeded(),
-     ne(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
+     ne(dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'], 'yes')
      )
     jobs:
       - job: rollback
@@ -132,17 +127,14 @@ stages:
   - stage: Execute
     displayName: "Execute DDL"
     dependsOn:
+      - Detect
       - AI
-    # condition: |
-    #   and(
-    #     succeeded('AI'),
-    #     ne( stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
-    #   )
+      - AutoRollback
     condition: |
-     and(
-       succeeded('AI'),
-       ne(variables.PIPELINE_IS_REVERT_GLOBAL, 'yes')
-     )
+      and(
+        succeeded(),
+        ne(dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'], 'yes')
+      )
     jobs:
       - job: execute
         pool:
@@ -174,7 +166,7 @@ stages:
               DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
               ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
               IS_DROP: $(PIPELINE_IS_DROP)
-              is_revert_str: $[ stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'] ]
+              PIPELINE_IS_REVERT: $[dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'] ]
               AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
               AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
               AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
@@ -220,7 +212,7 @@ stages:
 
       - job: rollback
         dependsOn: debug
-        condition: eq(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'],'yes')
+        condition: eq(dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'],'yes')
         pool:
           name: selfhostedpool
         steps:
