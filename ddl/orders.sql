@@ -18,5 +18,5 @@
 --     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 -- );
 
-ALTER TABLE employee_v92 ALTER COLUMN salary TYPE INT;
+ALTER TABLE employee_v92 ALTER COLUMN salary TYPE DECIMAL(14,2);
 
