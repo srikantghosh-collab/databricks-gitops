@@ -18,5 +18,9 @@ ALTER TABLE employee_v93 SET TBLPROPERTIES (
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
 
+ALTER TABLE employee_v93 ADD COLUMNS (email STRING);
 
+ALTER TABLE employee_v93 RENAME COLUMN emp_name TO full_name;
+
+ALTER TABLE employee_v93 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 
