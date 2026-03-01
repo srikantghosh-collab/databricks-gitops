@@ -134,7 +134,6 @@ stages:
       and(
         ne(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
       )
-
     jobs:
       - job: execute
         pool:
