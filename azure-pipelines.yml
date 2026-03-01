@@ -133,7 +133,7 @@ stages:
     condition: |
       and(
         succeeded(),
-        ne(dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'], 'yes')
+        ne(stageDependencies.Detect.detect.outputs['  detectrevert.PIPELINE_IS_REVERT'], 'yes')
       )
     jobs:
       - job: execute
@@ -166,7 +166,7 @@ stages:
               DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
               ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
               IS_DROP: $(PIPELINE_IS_DROP)
-              PIPELINE_IS_REVERT: $[dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'] ]
+              PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'] ]
               AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
               AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
               AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
@@ -212,7 +212,7 @@ stages:
 
       - job: rollback
         dependsOn: debug
-        condition: eq(dependencies.Detect.outputs['detect.detectrevert.PIPELINE_IS_REVERT'],'yes')
+        condition: eq(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'],'yes')
         pool:
           name: selfhostedpool
         steps:
