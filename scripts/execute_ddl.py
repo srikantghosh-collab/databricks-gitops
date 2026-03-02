@@ -92,7 +92,7 @@ UNSUPPORTED_KEYWORDS = [
     "ENABLE ROW LEVEL SECURITY",
     "UNLOGGED",
     "SWITCH TO",
-    "ALTER TYPE"
+    
 ]
 
 def validate_sql_dialect(ddl_sql):
