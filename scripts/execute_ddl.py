@@ -154,13 +154,21 @@ def generate_migration_sql(table, column, new_type):
 # =================================================
 ddl_text = " ".join(strip_comments(d["statement"]).upper() for d in ddls)
 
-if "DROP TABLE" in ddl_text or "DROP COLUMN" in ddl_text:
+if any(kw in ddl_text for kw in [
+    "DROP TABLE",
+    "DROP COLUMN",
+    "ALTER COLUMN",
+    "CHANGE COLUMN",
+    "TYPE"
+]):
     backup_mode = "DATA_BACKUP"
+
 elif "ALTER TABLE" in ddl_text:
     backup_mode = "STATE_BACKUP"
+
 else:
     backup_mode = "NONE"
-
+    
 print(f"Backup mode selected: {backup_mode}")
 
 # =================================================
