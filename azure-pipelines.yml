@@ -116,10 +116,7 @@ stages:
     #     eq(variables.PIPELINE_IS_DROP, 'true')
     #   )
     condition: |
-      eq(
-        toLower(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP']),
-        'true'
-      )
+      eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'true')
     jobs:
       - job: approval
         pool: server
