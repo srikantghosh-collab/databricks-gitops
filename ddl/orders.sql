@@ -20,4 +20,4 @@
 
 
 -- ALTER TABLE employee_v94 ALTER COLUMN salary TYPE INT;
-ALTER TABLE employee_v94 ALTER COLUMN emp_id SET NOT NULL;
+DROP TABLE employee_v94;

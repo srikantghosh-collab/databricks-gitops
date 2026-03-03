@@ -110,10 +110,15 @@ stages:
   - stage: Approval
     displayName: "Manual Approval for DROP"
     dependsOn: AI
+    # condition: |
+    #   and(
+    #     succeeded(),
+    #     eq(variables.PIPELINE_IS_DROP, 'true')
+    #   )
     condition: |
-      and(
-        succeeded(),
-        eq(variables.PIPELINE_IS_DROP, 'true')
+      eq(
+        toLower(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP']),
+        'true'
       )
     jobs:
       - job: approval

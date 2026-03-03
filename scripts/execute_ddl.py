@@ -156,11 +156,11 @@ ddl_text = " ".join(strip_comments(d["statement"]).upper() for d in ddls)
 
 if any(kw in ddl_text for kw in [
     "DROP TABLE",
-    "DROP COLUMN",
-    "ALTER COLUMN",
-    "CHANGE COLUMN",
-    "TYPE"
+    "DROP COLUMN"
 ]):
+    backup_mode = "DATA_BACKUP"
+
+elif "ALTER TABLE" in ddl_text and "TYPE" in ddl_text:
     backup_mode = "DATA_BACKUP"
 
 elif "ALTER TABLE" in ddl_text:
@@ -168,8 +168,6 @@ elif "ALTER TABLE" in ddl_text:
 
 else:
     backup_mode = "NONE"
-    
-print(f"Backup mode selected: {backup_mode}")
 
 # =================================================
 # Backup Before Execution
