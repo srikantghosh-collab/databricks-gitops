@@ -63,14 +63,13 @@ stages:
               AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
 
           - script: |
-              echo "##vso[task.setvariable variable=PIPELINE_IS_DROP;isOutput=true]$IS_DROP"
-              
-              echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE]$ROLLBACK_TYPE"
+             echo "##vso[task.setvariable variable=PIPELINE_IS_DROP;isOutput=true]$IS_DROP"
+             echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE;isOutput=true]$ROLLBACK_TYPE"
+            name: PromoteVars
             displayName: "Promote AI Variables"
             env:
-              IS_DROP: $(SetOutput.IS_DROP)
-             
-              ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
+             IS_DROP: $(SetOutput.IS_DROP)
+             ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
   - stage: RollbackGen
     displayName: "Generate AI Rollback SQL"
@@ -110,13 +109,9 @@ stages:
   - stage: Approval
     displayName: "Manual Approval for DROP"
     dependsOn: AI
-    # condition: |
-    #   and(
-    #     succeeded(),
-    #     eq(variables.PIPELINE_IS_DROP, 'true')
-    #   )
+    
     condition: |
-      eq(stageDependencies.AI.ai.outputs['SetOutput.IS_DROP'], 'true')
+      eq(stageDependencies.AI.ai.outputs['PromoteVars.PIPELINE_IS_DROP'], 'true')
     jobs:
       - job: approval
         pool: server

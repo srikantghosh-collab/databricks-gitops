@@ -120,8 +120,7 @@ print("Is Drop:", is_drop)
 # --------------------------------
 # Azure DevOps output variables
 # --------------------------------
-# Determine backup mode: require backup for drops or partial irreversible changes, otherwise no backup.
-#backup_mode_value = "BACKUP" if is_drop or rollback_type == "PARTIAL" else "NO_BACKUP"
+
 is_drop_str = str(is_drop).lower()
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{is_drop_str}")
 print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
