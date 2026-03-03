@@ -45,6 +45,7 @@ tables:
 
   - name : employee_v23
     schema: default
+    using: DELTA
     columns:
       - name: employee_id
         type: INT
@@ -56,7 +57,7 @@ tables:
         type: DECIMAL(10, 2)
       - name: created_date
         type: TIMESTAMP
-      - using: DELTA
+      
 
   - name: employee_v24
     schema: default
