@@ -122,7 +122,7 @@ print("Is Drop:", is_drop)
 # --------------------------------
 # Determine backup mode: require backup for drops or partial irreversible changes, otherwise no backup.
 #backup_mode_value = "BACKUP" if is_drop or rollback_type == "PARTIAL" else "NO_BACKUP"
-
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+is_drop_str = str(is_drop).lower()
+print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{is_drop_str}")
 print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
 #print(f"##vso[task.setvariable variable=BACKUP_MODE;isOutput=true]{backup_mode_value}")
