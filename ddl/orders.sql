@@ -6,7 +6,5 @@ order_date DATE
 )
 USING DELTA
 PARTITIONED BY (order_date);
-
--- Optimization
-OPTIMIZE orders_v1
+OPTIMIZE orders_v2
 ZORDER BY (customer_id);
