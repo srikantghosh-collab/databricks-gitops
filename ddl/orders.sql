@@ -1,4 +1,4 @@
-CREATE TABLE orders
+CREATE TABLE orders_v1
 (
 order_id INT,
 customer_id INT,
