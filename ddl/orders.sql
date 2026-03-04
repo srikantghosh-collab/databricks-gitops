@@ -1,10 +1,22 @@
-CREATE TABLE orders_v2 (
-order_id INT,
-customer_id INT,
-amount DOUBLE,
-order_date DATE
+CREATE TABLE IF NOT EXISTS employee_v97 (
+    emp_id INT,
+    emp_name STRING,
+    department STRING,
+    salary DECIMAL(10,2),
+    created_date TIMESTAMP
 )
-USING DELTA
-PARTITIONED BY (order_date);
-OPTIMIZE orders_v2
-ZORDER BY (customer_id);
+USING DELTA;
+
+INSERT INTO employee_v97 VALUES
+(1, 'John', 'IT', 60000, current_timestamp()),
+(2, 'Sara', 'HR', 50000, current_timestamp()),
+(3, 'Mike', 'Finance', 70000, current_timestamp());
+
+ALTER TABLE employee_v97
+SET TBLPROPERTIES (
+    'delta.logRetentionDuration' = 'interval 30 days',
+    'delta.deletedFileRetentionDuration' = 'interval 30 days'
+);
+PARTITIONED BY (department);
+OPTIMIZE employee_v97
+ZORDER BY (department);
