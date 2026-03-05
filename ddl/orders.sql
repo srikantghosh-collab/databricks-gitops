@@ -13,8 +13,7 @@ INSERT INTO employee_pro VALUES
 (2, 'Sara', 'HR', 50000, current_timestamp()),
 (3, 'Mike', 'Finance', 70000, current_timestamp());
 
-ALTER TABLE employee_pro
-SET TBLPROPERTIES (
+ALTER TABLE employee_pro SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
