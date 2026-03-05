@@ -71,6 +71,11 @@ stages:
              IS_DROP: $(SetOutput.IS_DROP)
              ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
+          - script: |
+             echo "DEBUG IS_DROP = $(SetOutput.IS_DROP)"
+             echo "DEBUG PIPELINE_IS_DROP = $(PIPELINE_IS_DROP)"
+            displayName: "Debug AI Variables"
+
   - stage: RollbackGen
     displayName: "Generate AI Rollback SQL"
     dependsOn: AI
