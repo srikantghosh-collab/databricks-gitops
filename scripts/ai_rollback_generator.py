@@ -165,6 +165,22 @@ Provide ONLY SQL comments:
 NEVER reference ddl_state_backup for type changes.
 
 --------------------------------------------------
+ALTER TABLE ALTER COLUMN COMMENT
+--------------------------------------------------
+Backup Mode: STATE_BACKUP
+Rollback Type: REVERSIBLE
+
+This operation only changes metadata.
+
+Rollback SQL:
+ALTER TABLE table_name ALTER COLUMN column_name COMMENT '';
+
+If previous comment is known, restore the previous comment.
+
+This operation NEVER causes data loss.
+NEVER mark as IRREVERSIBLE.
+
+--------------------------------------------------
 ALTER TABLE SET TBLPROPERTIES
 --------------------------------------------------
 Backup Mode: STATE_BACKUP
