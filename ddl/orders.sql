@@ -21,7 +21,7 @@
 
 -- ALTER TABLE employee_pro ALTER COLUMN salary TYPE INT;
 
-DROP TABLE employee_pro;
+DROP TABLE employee_v10;
 -- CREATE TABLE orders (
 --     order_id INT,
 --     customer_id INT,
