@@ -17,9 +17,9 @@ ALTER TABLE employee_pro1 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
-ALTER TABLE employee_pro1 DROP COLUMN department;
 
-ALTER TABLE employee_pro1 ALTER COLUMN salary TYPE INT;
+
+
 
 
 -- CREATE TABLE orders (
