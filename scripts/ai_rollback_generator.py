@@ -29,7 +29,7 @@ client = AzureOpenAI(
 )
 
 # ----------------------------------------
-# SYSTEM PROMPT (STRICT)
+# SYSTEM PROMPT (FULL VERSION)
 # ----------------------------------------
 SYSTEM_PROMPT = """
 You are an expert Databricks Delta Lake database reliability engineer.
@@ -209,102 +209,53 @@ Rollback:
 
 --------------------------------------------------
 
-Return ONLY the rollback SQL statements in reverse order."""
-# ----------------------------------------
-# Helpers
-# ----------------------------------------
-def format_previous_state(item):
-    prev = item.get("previous_state")
-    if not prev:
-        return "UNKNOWN"
-    return json.dumps(prev, indent=2)
-
-
-def table_created_in_same_commit(ddls, current_item):
-    """
-    Returns True if the table of current_item
-    was created earlier in the same commit.
-    """
-    stmt = current_item["statement"].upper()
-
-    # extract table name roughly
-    tokens = stmt.split()
-    table_name = None
-    if "TABLE" in tokens:
-        idx = tokens.index("TABLE")
-        if idx + 1 < len(tokens):
-            table_name = tokens[idx + 1]
-
-    if not table_name:
-        return False
-
-    for d in ddls:
-        if d is current_item:
-            break
-        if d["statement"].upper().startswith("CREATE TABLE") and table_name in d["statement"].upper():
-            return True
-
-    return False
-
-
-def generate_rollback(forward_sql, previous_state):
-    response = client.chat.completions.create(
-        model=os.environ["AZURE_DEPLOYMENT_NAME"],
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": f"""
-Forward DDL:
-{forward_sql}
-
-Previous Table State:
-{previous_state}
+Return ONLY the rollback SQL statements in reverse order.
 """
-            }
-        ],
-        temperature=0
-    )
-
-    return response.choices[0].message.content.strip()
-
 
 # ----------------------------------------
-# Generate rollback SQL
+# Prepare forward DDL batch
 # ----------------------------------------
-rollback_lines = []
-rollback_lines.append(f"-- Rollback script for commit: {commit_id}")
-rollback_lines.append("")
+forward_sql_list = []
 
-for item in ddls:
-    ddl_id = item.get("id")
-    forward_sql = item["statement"]
-    previous_state = format_previous_state(item)
+for i, item in enumerate(ddls, start=1):
+    stmt = item["statement"]
+    forward_sql_list.append(f"{i}. {stmt}")
 
-    rollback_sql = generate_rollback(forward_sql, previous_state)
-
-    # ------------------------------------
-    # SAFETY CHECK (FIXED)
-    # ------------------------------------
-    if (
-        "SET TBLPROPERTIES" in rollback_sql.upper()
-        and previous_state == "UNKNOWN"
-        and not table_created_in_same_commit(ddls, item)
-    ):
-        print("ERROR: Unsafe rollback generated without previous state.")
-        print(f"DDL: {forward_sql}")
-        sys.exit(1)
-
-    rollback_lines.append("-- ========================================")
-    rollback_lines.append(f"-- DDL_ID: {ddl_id}")
-    rollback_lines.append("-- Forward DDL:")
-    rollback_lines.append(f"-- {forward_sql}")
-    rollback_lines.append("-- ========================================")
-    rollback_lines.append(rollback_sql)
-    rollback_lines.append("")
+forward_sql_text = "\n".join(forward_sql_list)
 
 # ----------------------------------------
-# Write rollback file
+# Call Azure OpenAI
+# ----------------------------------------
+response = client.chat.completions.create(
+    model=os.environ["AZURE_DEPLOYMENT_NAME"],
+    temperature=0,
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": f"""
+Forward DDL statements:
+
+{forward_sql_text}
+
+Generate the rollback SQL.
+Remember rollback must be in reverse order.
+"""
+        }
+    ]
+)
+
+rollback_sql = response.choices[0].message.content.strip()
+
+# ----------------------------------------
+# Safety check
+# ----------------------------------------
+if "CREATE TABLE" in rollback_sql.upper():
+    print("ERROR: Unsafe rollback detected.")
+    sys.exit(1)
+
+# ----------------------------------------
+# Write rollback.sql
 # ----------------------------------------
 rollback_filename = os.path.join(
     os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
@@ -312,6 +263,6 @@ rollback_filename = os.path.join(
 )
 
 with open(rollback_filename, "w") as f:
-    f.write("\n".join(rollback_lines))
+    f.write(rollback_sql + "\n")
 
-print(f"Rollback SQL generated: {rollback_filename}")
+print("Rollback SQL generated:", rollback_filename)
