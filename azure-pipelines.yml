@@ -111,6 +111,14 @@ stages:
               artifact: rollback-sql
             displayName: "Publish Rollback SQL"
 
+          - script: |
+             python scripts/upload_rollback_to_workspace.py
+            displayName: "Upload Rollback SQL to Databricks"
+            env:
+             DATABRICKS_HOST: $(Databricks_Host)
+             DATABRICKS_TOKEN: $(Databricks_Token)
+             COMMIT_ID: $(Build.SourceVersion)
+
   - stage: Approval
     displayName: "Manual Approval for DROP"
     dependsOn: AI

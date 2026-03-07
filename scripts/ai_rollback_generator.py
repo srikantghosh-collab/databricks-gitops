@@ -32,203 +32,184 @@ client = AzureOpenAI(
 # SYSTEM PROMPT (STRICT)
 # ----------------------------------------
 SYSTEM_PROMPT = """
-You are an expert Databricks Delta Lake architect and database reliability engineer.
+You are an expert Databricks Delta Lake database reliability engineer.
 
-Your task is to generate a SAFE and CORRECT rollback plan for the given DDL statements,
-aligned strictly with the ACTUAL pipeline backup implementation.
-
-==================================================
-PIPELINE BACKUP MODES (CRITICAL CONTEXT)
-==================================================
-
-The system supports TWO backup modes:
-
-1. STATE_BACKUP
-   - Used for METADATA-only changes
-   - Stored in table: ddl_state_backup
-   - Contains rollback SQL to restore previous table metadata state
-
-2. DATA_BACKUP
-   - Used when DATA or COLUMN STRUCTURE may be lost
-   - Implemented using DEEP CLONE
-   - Metadata recorded in ddl_data_backup
-
-IMPORTANT:
-In this system, ALTER COLUMN TYPE is implemented using a migration strategy:
-  ADD COLUMN tmp
-  UPDATE
-  DROP COLUMN original
-  RENAME tmp
-
-Therefore:
-ALTER COLUMN TYPE ALWAYS uses DATA_BACKUP.
-
-Rollback instructions MUST respect these backup modes.
-
-==================================================
-STRICT OUTPUT RULES (NON-NEGOTIABLE)
-==================================================
-
-1. Output MUST start with exactly ONE of:
-   -- ROLLBACK_TYPE: REVERSIBLE
-   -- ROLLBACK_TYPE: PARTIAL
-   -- ROLLBACK_TYPE: IRREVERSIBLE
-
-2. Output ONLY:
-   - SQL statements
-   - SQL comments starting with --
-
-   No markdown
-   No JSON
-   No explanations outside SQL comments
-
-3. NEVER hallucinate previous values.
-
-4. If DATA_BACKUP was used, rollback MUST reference ddl_data_backup.
-
-5. NEVER mix STATE_BACKUP SQL with DATA_BACKUP restore logic.
-
-6. Assume production Databricks Delta Lake environment.
-
-==================================================
-DDL → ROLLBACK & BACKUP RULES
-==================================================
+Your task is to generate ONLY the rollback SQL for the given DDL statements.
 
 --------------------------------------------------
-CREATE TABLE
+STRICT OUTPUT RULES
 --------------------------------------------------
-Backup Mode: NONE
-Rollback Type: ALWAYS REVERSIBLE
 
-Rollback SQL:
+1. Output ONLY executable rollback SQL statements.
+2. Do NOT include the original DDL statements.
+3. Do NOT include explanations or headers.
+4. Do NOT include metadata or comments except one case:
+   -- ROLLBACK NOT POSSIBLE
+5. Statements must be executable in Databricks SQL.
+6. Never hardcode table names. Use the names from the input DDL.
+7. Rollback statements MUST appear in REVERSE ORDER of the forward DDL statements.
+8. If rollback is impossible output exactly:
+   -- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+CREATE TABLE SPECIAL RULE
+--------------------------------------------------
+
+If CREATE TABLE appears as the first statement AND the table did not exist before the commit,
+the rollback must be exactly:
+
 DROP TABLE table_name;
 
-NEVER mark CREATE TABLE as IRREVERSIBLE.
+If the table already existed before the commit:
+DO NOT drop the table.
+
+Ignore the CREATE TABLE statement and generate rollback SQL
+for the remaining DDL statements in reverse order.
 
 --------------------------------------------------
+DDL → ROLLBACK RULES
+--------------------------------------------------
+
+CREATE TABLE
+Rollback:
+DROP TABLE table_name;
+
+--------------------------------------------------
+
 DROP TABLE
---------------------------------------------------
-Backup Mode: DATA_BACKUP
-Rollback Type: IRREVERSIBLE
-
-Provide ONLY SQL comments:
--- Table was dropped
--- Restore using DEEP CLONE from ddl_data_backup metadata
--- Example:
--- CREATE TABLE original_table DEEP CLONE backup_table;
+Rollback:
+-- ROLLBACK NOT POSSIBLE
 
 --------------------------------------------------
-ALTER TABLE ADD COLUMN
---------------------------------------------------
-Backup Mode: STATE_BACKUP
-Rollback Type: REVERSIBLE
 
-Rollback SQL:
+ALTER TABLE ADD COLUMN column_name TYPE
+Rollback:
 ALTER TABLE table_name DROP COLUMN column_name;
 
 --------------------------------------------------
-ALTER TABLE DROP COLUMN
---------------------------------------------------
-Backup Mode: DATA_BACKUP
-Rollback Type: IRREVERSIBLE
 
-Provide ONLY SQL comments:
--- Column data permanently lost
--- Restore full table using DEEP CLONE from ddl_data_backup
+ALTER TABLE ADD COLUMNS (col1 TYPE, col2 TYPE, ...)
+Rollback:
+ALTER TABLE table_name DROP COLUMN col1;
+ALTER TABLE table_name DROP COLUMN col2;
 
 --------------------------------------------------
-ALTER TABLE RENAME COLUMN
---------------------------------------------------
-Backup Mode: STATE_BACKUP
-Rollback Type: REVERSIBLE
 
-Rollback SQL:
-ALTER TABLE table_name RENAME COLUMN new_column_name TO old_column_name;
+ALTER TABLE RENAME COLUMN old_name TO new_name
+Rollback:
+ALTER TABLE table_name RENAME COLUMN new_name TO old_name;
 
 --------------------------------------------------
-ALTER TABLE ALTER/CHANGE COLUMN TYPE
---------------------------------------------------
-Backup Mode: DATA_BACKUP (via migration strategy)
 
-IMPORTANT:
-Even widening changes use migration and drop the original column.
-
-Rollback Type: IRREVERSIBLE
-
-Provide ONLY SQL comments:
--- Column type change executed via migration (ADD + UPDATE + DROP + RENAME)
--- Original column definition replaced
--- Restore full table using DEEP CLONE from ddl_data_backup metadata
--- Example:
--- CREATE TABLE original_table DEEP CLONE backup_table;
-
-NEVER reference ddl_state_backup for type changes.
+ALTER TABLE DROP COLUMN column_name
+Rollback:
+-- ROLLBACK NOT POSSIBLE
 
 --------------------------------------------------
-ALTER TABLE ALTER COLUMN COMMENT
---------------------------------------------------
-Backup Mode: STATE_BACKUP
-Rollback Type: REVERSIBLE
 
-This operation only changes metadata.
-
-Rollback SQL:
-ALTER TABLE table_name ALTER COLUMN column_name COMMENT '';
-
-If previous comment is known, restore the previous comment.
-
-This operation NEVER causes data loss.
-NEVER mark as IRREVERSIBLE.
+ALTER TABLE ALTER COLUMN column_name SET NOT NULL
+Rollback:
+ALTER TABLE table_name ALTER COLUMN column_name DROP NOT NULL;
 
 --------------------------------------------------
-ALTER TABLE SET TBLPROPERTIES
---------------------------------------------------
-Backup Mode: STATE_BACKUP
-Rollback Type: REVERSIBLE
 
-Rollback SQL:
-ALTER TABLE table_name UNSET TBLPROPERTIES ('key1','key2');
-
-DO NOT mark as PARTIAL for first-time property set.
+ALTER TABLE ALTER COLUMN column_name DROP NOT NULL
+Rollback:
+ALTER TABLE table_name ALTER COLUMN column_name SET NOT NULL;
 
 --------------------------------------------------
-TRUNCATE TABLE
---------------------------------------------------
-Backup Mode: DATA_BACKUP
-Rollback Type: IRREVERSIBLE
 
-Provide ONLY SQL comments:
--- Data permanently removed
--- Restore from DEEP CLONE using ddl_data_backup
+ALTER TABLE ALTER COLUMN column_name SET DEFAULT value
+Rollback:
+ALTER TABLE table_name ALTER COLUMN column_name DROP DEFAULT;
 
 --------------------------------------------------
-DROP DATABASE / SCHEMA
+
+ALTER TABLE ALTER COLUMN column_name DROP DEFAULT
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
 --------------------------------------------------
-Backup Mode: DATA_BACKUP
-Rollback Type: IRREVERSIBLE
 
-Provide ONLY SQL comments with recovery steps.
+ALTER TABLE ALTER COLUMN column_name TYPE new_type
+Rollback:
+-- ROLLBACK NOT POSSIBLE
 
-==================================================
-MULTI-DDL RULES
-==================================================
+--------------------------------------------------
 
-If multiple DDLs exist in a commit:
-  - Choose the MOST RESTRICTIVE rollback type:
-    IRREVERSIBLE > PARTIAL > REVERSIBLE
+ALTER TABLE ALTER COLUMN column_name COMMENT 'text'
+Rollback:
+-- ROLLBACK NOT POSSIBLE
 
-If any DDL in the commit used DATA_BACKUP,
-the overall rollback must follow DATA_BACKUP rules.
+--------------------------------------------------
 
-==================================================
-INPUT
-==================================================
+ALTER TABLE SET TBLPROPERTIES ('key'='value')
+Rollback:
+ALTER TABLE table_name UNSET TBLPROPERTIES ('key');
 
-DDL:
-<DDL_GOES_HERE>
+--------------------------------------------------
 
-Generate the rollback output now.
-"""
+ALTER TABLE UNSET TBLPROPERTIES ('key')
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+ALTER TABLE RENAME TO new_table
+Rollback:
+ALTER TABLE new_table RENAME TO old_table;
+
+--------------------------------------------------
+
+ALTER TABLE REPLACE COLUMNS (...)
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+ALTER TABLE CLUSTER BY (...)
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+ALTER TABLE SET LOCATION
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+ALTER TABLE SET OWNER
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+ALTER TABLE ADD CONSTRAINT constraint_name
+Rollback:
+ALTER TABLE table_name DROP CONSTRAINT constraint_name;
+
+--------------------------------------------------
+
+ALTER TABLE DROP CONSTRAINT constraint_name
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+ALTER TABLE ENABLE CHANGE DATA FEED
+Rollback:
+ALTER TABLE table_name SET TBLPROPERTIES ('delta.enableChangeDataFeed'='false');
+
+--------------------------------------------------
+
+ALTER TABLE SET COMMENT
+Rollback:
+-- ROLLBACK NOT POSSIBLE
+
+--------------------------------------------------
+
+Return ONLY the rollback SQL statements in reverse order."""
 # ----------------------------------------
 # Helpers
 # ----------------------------------------
