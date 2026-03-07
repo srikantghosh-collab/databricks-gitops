@@ -14,7 +14,7 @@ with open(ROLLBACK_FILE, "r") as f:
 
 encoded_content = base64.b64encode(content.encode()).decode()
 
-url = f"https://{os.environ['DATABRICKS_HOST']}/api/2.0/workspace/import"
+url =  f"{os.environ['DATABRICKS_HOST']}/api/2.0/workspace/import"
 
 payload = {
     "path": f"/Workspace/rollback_scripts/rollback_{commit_id}.sql",
