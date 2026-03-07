@@ -107,7 +107,7 @@ stages:
 
           - task: PublishPipelineArtifact@1
             inputs:
-              targetPath: $(System.DefaultWorkingDirectory)
+              targetPath: rollback.sql
               artifact: rollback-sql
             displayName: "Publish Rollback SQL"
 
@@ -118,6 +118,13 @@ stages:
              DATABRICKS_HOST: $(Databricks_Host)
              DATABRICKS_TOKEN: $(Databricks_Token)
              COMMIT_ID: $(Build.SourceVersion)
+
+          - script: |
+             echo "Current Directory:"
+             pwd
+             echo "Files:"
+             ls -R
+            displayName: "Debug Files"
 
   - stage: Approval
     displayName: "Manual Approval for DROP"

@@ -2,8 +2,12 @@ import requests
 import base64
 import os
 
-ROLLBACK_FILE = "rollback.sql"
 commit_id = os.environ.get("COMMIT_ID")
+
+ROLLBACK_FILE = os.path.join(
+    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
+    "rollback.sql"
+)
 
 with open(ROLLBACK_FILE, "r") as f:
     content = f.read()
