@@ -308,7 +308,7 @@ for item in ddls:
 # ----------------------------------------
 rollback_filename = os.path.join(
     os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
-    f"rollback_{commit_id}.sql"
+    "rollback.sql"
 )
 
 with open(rollback_filename, "w") as f:
