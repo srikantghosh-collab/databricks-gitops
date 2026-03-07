@@ -16,11 +16,10 @@ ALTER TABLE employee_pro6 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
-ALTER TABLE employee_pro6 ADD COLUMNS (email STRING);
+ALTER TABLE employee_pro6 DROP COLUMN department;
 
-ALTER TABLE employee_pro6 RENAME COLUMN emp_name TO full_name;
+ALTER TABLE employee_pro6 ALTER COLUMN salary TYPE INT;
 
-ALTER TABLE employee_pro6 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 
 -- CREATE TABLE orders (
 --     order_id INT,
