@@ -29,7 +29,7 @@ client = AzureOpenAI(
 )
 
 # ----------------------------------------
-# SYSTEM PROMPT (FULL VERSION)
+# SYSTEM PROMPT (UNCHANGED)
 # ----------------------------------------
 SYSTEM_PROMPT = """
 You are an expert Databricks Delta Lake database reliability engineer.
@@ -74,154 +74,118 @@ CREATE TABLE
 Rollback:
 DROP TABLE table_name;
 
---------------------------------------------------
-
 DROP TABLE
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE ADD COLUMN column_name TYPE
 Rollback:
 ALTER TABLE table_name DROP COLUMN column_name;
-
---------------------------------------------------
 
 ALTER TABLE ADD COLUMNS (col1 TYPE, col2 TYPE, ...)
 Rollback:
 ALTER TABLE table_name DROP COLUMN col1;
 ALTER TABLE table_name DROP COLUMN col2;
 
---------------------------------------------------
-
 ALTER TABLE RENAME COLUMN old_name TO new_name
 Rollback:
 ALTER TABLE table_name RENAME COLUMN new_name TO old_name;
-
---------------------------------------------------
 
 ALTER TABLE DROP COLUMN column_name
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE ALTER COLUMN column_name SET NOT NULL
 Rollback:
 ALTER TABLE table_name ALTER COLUMN column_name DROP NOT NULL;
-
---------------------------------------------------
 
 ALTER TABLE ALTER COLUMN column_name DROP NOT NULL
 Rollback:
 ALTER TABLE table_name ALTER COLUMN column_name SET NOT NULL;
 
---------------------------------------------------
-
 ALTER TABLE ALTER COLUMN column_name SET DEFAULT value
 Rollback:
 ALTER TABLE table_name ALTER COLUMN column_name DROP DEFAULT;
-
---------------------------------------------------
 
 ALTER TABLE ALTER COLUMN column_name DROP DEFAULT
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE ALTER COLUMN column_name TYPE new_type
 Rollback:
 -- ROLLBACK NOT POSSIBLE
-
---------------------------------------------------
 
 ALTER TABLE ALTER COLUMN column_name COMMENT 'text'
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE SET TBLPROPERTIES ('key'='value')
 Rollback:
 ALTER TABLE table_name UNSET TBLPROPERTIES ('key');
-
---------------------------------------------------
 
 ALTER TABLE UNSET TBLPROPERTIES ('key')
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE RENAME TO new_table
 Rollback:
 ALTER TABLE new_table RENAME TO old_table;
-
---------------------------------------------------
 
 ALTER TABLE REPLACE COLUMNS (...)
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE CLUSTER BY (...)
 Rollback:
 -- ROLLBACK NOT POSSIBLE
-
---------------------------------------------------
 
 ALTER TABLE SET LOCATION
 Rollback:
 -- ROLLBACK NOT POSSIBLE
 
---------------------------------------------------
-
 ALTER TABLE SET OWNER
 Rollback:
 -- ROLLBACK NOT POSSIBLE
-
---------------------------------------------------
 
 ALTER TABLE ADD CONSTRAINT constraint_name
 Rollback:
 ALTER TABLE table_name DROP CONSTRAINT constraint_name;
 
---------------------------------------------------
-
 ALTER TABLE DROP CONSTRAINT constraint_name
 Rollback:
 -- ROLLBACK NOT POSSIBLE
-
---------------------------------------------------
 
 ALTER TABLE ENABLE CHANGE DATA FEED
 Rollback:
 ALTER TABLE table_name SET TBLPROPERTIES ('delta.enableChangeDataFeed'='false');
 
---------------------------------------------------
-
 ALTER TABLE SET COMMENT
 Rollback:
 -- ROLLBACK NOT POSSIBLE
-
---------------------------------------------------
 
 Return ONLY the rollback SQL statements in reverse order.
 """
 
 # ----------------------------------------
-# Prepare forward DDL batch
+# Prepare DDL batch
 # ----------------------------------------
 forward_sql_list = []
+previous_state_list = []
 
 for i, item in enumerate(ddls, start=1):
+
     stmt = item["statement"]
+    prev_state = item.get("previous_state")
+
     forward_sql_list.append(f"{i}. {stmt}")
 
+    previous_state_list.append({
+        "statement": stmt,
+        "previous_state": prev_state
+    })
+
 forward_sql_text = "\n".join(forward_sql_list)
+previous_state_text = json.dumps(previous_state_list, indent=2)
 
 # ----------------------------------------
 # Call Azure OpenAI
@@ -238,7 +202,14 @@ Forward DDL statements:
 
 {forward_sql_text}
 
-Generate the rollback SQL.
+Previous table state before the commit:
+
+{previous_state_text}
+
+If previous_state is null or UNKNOWN,
+assume the table did NOT exist before the commit.
+
+Generate rollback SQL.
 Remember rollback must be in reverse order.
 """
         }
