@@ -233,11 +233,16 @@ rollback_filename = os.path.join(
     "rollback.sql"
 )
 
-with open(rollback_filename, "w") as f:
-    commands = [cmd.strip() for cmd in rollback_sql.split(";") if cmd.strip()]
+commands = [cmd.strip() for cmd in rollback_sql.split(";") if cmd.strip()]
 
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
 
-f.write(formatted_sql)
+rollback_filename = os.path.join(
+    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
+    "rollback.sql"
+)
+
+with open(rollback_filename, "w") as f:
+    f.write(formatted_sql)
 
 print("Rollback SQL generated:", rollback_filename)
