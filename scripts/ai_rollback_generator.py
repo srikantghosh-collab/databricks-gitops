@@ -234,6 +234,10 @@ rollback_filename = os.path.join(
 )
 
 with open(rollback_filename, "w") as f:
-    f.write(rollback_sql + "\n")
+    commands = [cmd.strip() for cmd in rollback_sql.split(";") if cmd.strip()]
+
+formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
+
+f.write(formatted_sql)
 
 print("Rollback SQL generated:", rollback_filename)

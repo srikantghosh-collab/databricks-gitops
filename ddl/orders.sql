@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS employee_pro6 (
+CREATE TABLE IF NOT EXISTS employee_pro8 (
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -7,19 +7,20 @@ CREATE TABLE IF NOT EXISTS employee_pro6 (
 )
 USING DELTA;
 
-INSERT INTO employee_pro6 VALUES
+INSERT INTO employee_pro8 VALUES
 (1, 'John', 'IT', 60000, current_timestamp()),
 (2, 'Sara', 'HR', 50000, current_timestamp()),
 (3, 'Mike', 'Finance', 70000, current_timestamp());
 
-ALTER TABLE employee_pro6 SET TBLPROPERTIES (
+ALTER TABLE employee_pro8 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );
-ALTER TABLE employee_pro6 DROP COLUMN department;
+ALTER TABLE employee_pro8 ADD COLUMNS (email STRING);
 
-ALTER TABLE employee_pro6 ALTER COLUMN salary TYPE INT;
+ALTER TABLE employee_pro8 RENAME COLUMN emp_name TO full_name;
 
+ALTER TABLE employee_pro8 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 
 -- CREATE TABLE orders (
 --     order_id INT,
