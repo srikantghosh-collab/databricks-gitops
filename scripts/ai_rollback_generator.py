@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import re
 from openai import AzureOpenAI
 
 DDL_ARTIFACT = "ddl_output.json"
@@ -191,10 +192,19 @@ previous_state_text = json.dumps(previous_state_list, indent=2)
 
 first_stmt = ddls[0]["statement"].upper()
 
-if first_stmt.startswith("CREATE TABLE"):
 
-    table_name = first_stmt.split()[2]
-    rollback_sql = f"DROP TABLE {table_name};"
+create_match = re.search(
+    r"CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)",
+    first_stmt,
+    re.IGNORECASE
+)
+
+if create_match:
+
+    table_name = create_match.group(2)
+
+    # safest rollback
+    rollback_sql = f"DROP TABLE IF EXISTS {table_name};"
 
 else:
 
