@@ -31,8 +31,7 @@ client = AzureOpenAI(
 # ----------------------------------------
 # SYSTEM PROMPT (UNCHANGED)
 # ----------------------------------------
-SYSTEM_PROMPT = """
-You are an expert Databricks Delta Lake database reliability engineer.
+SYSTEM_PROMPT = """You are an expert Databricks Delta Lake database reliability engineer.
 
 Your task is to generate ONLY the rollback SQL for the given DDL statements.
 
@@ -167,13 +166,12 @@ Return ONLY the rollback SQL statements in reverse order.
 """
 
 # ----------------------------------------
-# Prepare DDL batch
+# Prepare forward DDL batch
 # ----------------------------------------
 forward_sql_list = []
 previous_state_list = []
 
 for i, item in enumerate(ddls, start=1):
-
     stmt = item["statement"]
     prev_state = item.get("previous_state")
 
@@ -188,16 +186,26 @@ forward_sql_text = "\n".join(forward_sql_list)
 previous_state_text = json.dumps(previous_state_list, indent=2)
 
 # ----------------------------------------
-# Call Azure OpenAI
+# Special handling for CREATE TABLE
 # ----------------------------------------
-response = client.chat.completions.create(
-    model=os.environ["AZURE_DEPLOYMENT_NAME"],
-    temperature=0,
-    messages=[
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": f"""
+
+first_stmt = ddls[0]["statement"].upper()
+
+if first_stmt.startswith("CREATE TABLE"):
+
+    table_name = first_stmt.split()[2]
+    rollback_sql = f"DROP TABLE {table_name};"
+
+else:
+
+    response = client.chat.completions.create(
+        model=os.environ["AZURE_DEPLOYMENT_NAME"],
+        temperature=0,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {
+                "role": "user",
+                "content": f"""
 Forward DDL statements:
 
 {forward_sql_text}
@@ -206,36 +214,38 @@ Previous table state before the commit:
 
 {previous_state_text}
 
-If previous_state is null or UNKNOWN,
-assume the table did NOT exist before the commit.
-
 Generate rollback SQL.
 Remember rollback must be in reverse order.
 """
-        }
-    ]
-)
+            }
+        ]
+    )
 
-rollback_sql = response.choices[0].message.content.strip()
+    rollback_sql = response.choices[0].message.content.strip()
 
 # ----------------------------------------
 # Safety check
 # ----------------------------------------
+
 if "CREATE TABLE" in rollback_sql.upper():
     print("ERROR: Unsafe rollback detected.")
     sys.exit(1)
 
 # ----------------------------------------
-# Write rollback.sql
+# Convert to notebook cells
 # ----------------------------------------
-rollback_filename = os.path.join(
-    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
-    "rollback.sql"
-)
 
-commands = [cmd.strip() for cmd in rollback_sql.split(";") if cmd.strip()]
+commands = [
+    cmd.strip()
+    for cmd in rollback_sql.split(";")
+    if cmd.strip()
+]
 
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
+
+# ----------------------------------------
+# Write rollback.sql
+# ----------------------------------------
 
 rollback_filename = os.path.join(
     os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
