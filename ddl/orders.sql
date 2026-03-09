@@ -38,4 +38,4 @@ ALTER TABLE employee_pro9 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 ALTER TABLE employee_pro9 SET TBLPROPERTIES ( 'quality' = 'silver',
 'modified_by' = 'devops_pipeline' );
 
-ALTER TABLE employee_pro9 RENAME TO employee_master;
+ALTER TABLE employee_pro9 RENAME TO employee_professional;
