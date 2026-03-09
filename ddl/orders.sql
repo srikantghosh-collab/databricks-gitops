@@ -29,13 +29,13 @@ ALTER TABLE employee_pro11 SET TBLPROPERTIES (
 -- OPTIMIZE orders
 -- ZORDER BY (customer_id);
 
-ALTER TABLE employee_pro9 ADD COLUMNS (email STRING);
+-- ALTER TABLE employee_pro9 ADD COLUMNS (email STRING);
 
-ALTER TABLE employee_pro9 RENAME COLUMN emp_name TO full_name;
+-- ALTER TABLE employee_pro9 RENAME COLUMN emp_name TO full_name;
 
-ALTER TABLE employee_pro9 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
+-- ALTER TABLE employee_pro9 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 
-ALTER TABLE employee_pro9 SET TBLPROPERTIES ( 'quality' = 'silver',
-'modified_by' = 'devops_pipeline' );
+-- ALTER TABLE employee_pro9 SET TBLPROPERTIES ( 'quality' = 'silver',
+-- 'modified_by' = 'devops_pipeline' );
 
-ALTER TABLE employee_pro9 RENAME TO employee_professional;
+-- ALTER TABLE employee_pro9 RENAME TO employee_professional;
