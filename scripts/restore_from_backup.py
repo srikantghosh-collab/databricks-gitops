@@ -2,100 +2,65 @@ from databricks import sql
 import os
 import sys
 
-print("Starting rollback restore process ")
+print("Starting rollback restore process")
 
-# Read pipeline revert flag from the environment (default to "no")
 PIPELINE_IS_REVERT = os.environ.get("PIPELINE_IS_REVERT", "no").lower()
 if PIPELINE_IS_REVERT != "yes":
-    print("Not a revert → no-op")
+    print("Not a revert → exiting")
     sys.exit(0)
 
 REVERT_COMMIT = os.environ.get("REVERT_COMMIT")
+
 if not REVERT_COMMIT:
-    print("REVERT_COMMIT not provided")
+    print("REVERT_COMMIT missing")
     sys.exit(1)
 
-# ----------------------------------------
-# Connect to Databricks
-# ----------------------------------------
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
     access_token=os.environ["DATABRICKS_TOKEN"],
 )
+
 cursor = conn.cursor()
+
 cursor.execute("USE CATALOG hive_metastore")
-cursor.execute("USE SCHEMA default")
+cursor.execute("USE SCHEMA ddl_backup_table")
 
-# =====================================================
-# 1️⃣ Try DATA restore first (DROP TABLE case)
-# =====================================================
-print("Checking DATA_BACKUP table...")
+print("Searching backup tables...")
 
-cursor.execute(f"""
-SELECT source_table, backup_table
-FROM ddl_data_backup
-WHERE commit_id = '{REVERT_COMMIT}'
-ORDER BY backup_time DESC
-LIMIT 1
-""")
+cursor.execute("SHOW TABLES")
 
-row = cursor.fetchone()
+tables = cursor.fetchall()
 
-if row:
-    source_table, backup_table = row
-    print(f"DATA_BACKUP found → restoring {source_table} from {backup_table}")
+restored = False
 
-    cursor.execute(f"DROP TABLE IF EXISTS {source_table}")
-    cursor.execute(
-        f"CREATE TABLE {source_table} DEEP CLONE {backup_table}"
-    )
+for row in tables:
 
-    print("DATA restore completed successfully")
-    cursor.close()
-    conn.close()
-    sys.exit(0)
+    table_name = row[1]
 
-# =====================================================
-# 2️⃣ Try STATE restore (ALTER / PROPERTIES)
-# =====================================================
-print("No DATA_BACKUP found → checking STATE_BACKUP table...")
+    if REVERT_COMMIT in table_name:
 
-cursor.execute(f"""
-SELECT rollback_sql
-FROM ddl_state_backup
-WHERE commit_id = '{REVERT_COMMIT}'
-ORDER BY backup_time DESC
-LIMIT 1
-""")
+        backup_table = f"hive_metastore.ddl_backup_table.{table_name}"
 
-row = cursor.fetchone()
+        source_table = table_name.replace(f"_backup_{REVERT_COMMIT}", "")
 
-if row:
-    rollback_sql = row[0]
-    print("STATE_BACKUP found → executing rollback SQL")
-    print(rollback_sql)
+        source_table = f"hive_metastore.default.{source_table}"
 
-    statements = [
-        s.strip()
-        for s in rollback_sql.split(";")
-        if s.strip()
-    ]
+        print(f"Restoring {source_table} from {backup_table}")
 
-    for stmt in statements:
-        print(f"Executing: {stmt}")
-        cursor.execute(stmt)
+        cursor.execute(f"DROP TABLE IF EXISTS {source_table}")
 
-    print("STATE restore completed successfully")
-    cursor.close()
-    conn.close()
-    sys.exit(0)
+        cursor.execute(f"""
+        CREATE TABLE {source_table}
+        DEEP CLONE {backup_table}
+        """)
 
-# =====================================================
-# 3️⃣ Nothing to rollback
-# =====================================================
-print("No rollback data found → nothing to restore")
+        restored = True
+
+if not restored:
+    print("No matching backup table found")
 
 cursor.close()
 conn.close()
-print("Rollback finished (no-op)")
+
+print("Rollback finished")

@@ -150,56 +150,26 @@ def generate_migration_sql(table, column, new_type):
     ]
 
 # =================================================
-# Decide Backup Mode (Improved)
+# Create Backup Table (ddl_backup_table schema)
 # =================================================
-ddl_text = " ".join(strip_comments(d["statement"]).upper() for d in ddls)
 
-if any(kw in ddl_text for kw in [
-    "DROP TABLE",
-    "DROP COLUMN"
-]):
-    backup_mode = "DATA_BACKUP"
+tables_to_backup = set()
 
-elif "ALTER TABLE" in ddl_text and "TYPE" in ddl_text:
-    backup_mode = "DATA_BACKUP"
+for item in ddls:
+    table_name = extract_table_name(item["statement"])
+    if table_name:
+        tables_to_backup.add(table_name)
 
-elif "ALTER TABLE" in ddl_text:
-    backup_mode = "STATE_BACKUP"
+for table in tables_to_backup:
 
-else:
-    backup_mode = "NONE"
+    backup_table = f"hive_metastore.ddl_backup_table.{table.split('.')[-1]}_backup_{commit_id}"
 
-# =================================================
-# Backup Before Execution
-# =================================================
-backed_up_tables = {}
+    print(f"Creating backup table → {backup_table}")
 
-if backup_mode != "NONE":
-    for item in ddls:
-        table_name = extract_table_name(item["statement"])
-        if table_name:
-            backed_up_tables.setdefault(table_name, []).append(item["statement"])
-
-    if backup_mode == "DATA_BACKUP":
-        for table in backed_up_tables.keys():
-            print(f"DATA_BACKUP → {table}")
-            subprocess.check_call(
-                ["python", "scripts/backup_before_drop.py"],
-                env={**os.environ, "DDL_TABLE_NAME": table, "COMMIT_ID": commit_id},
-            )
-
-    elif backup_mode == "STATE_BACKUP":
-        for table, ddl_list in backed_up_tables.items():
-            print(f"STATE_BACKUP → {table}")
-            subprocess.check_call(
-                ["python", "scripts/capture_table_state.py"],
-                env={
-                    **os.environ,
-                    "TABLE_NAME": table,
-                    "DDL_SQL": ddl_list[-1],
-                    "COMMIT_ID": commit_id
-                },
-            )
+    cursor.execute(f"""
+    CREATE TABLE IF NOT EXISTS {backup_table}
+    DEEP CLONE {table}
+    """)
 
 # =================================================
 # Execute DDLs

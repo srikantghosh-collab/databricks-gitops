@@ -176,15 +176,12 @@ stages:
               python scripts/execute_ddl.py
             displayName: "Execute DDL"
             env:
-              DATABRICKS_HOST: $(Databricks_Host)
-              DATABRICKS_TOKEN: $(Databricks_Token)
-              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-              ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
-              IS_DROP: $(PIPELINE_IS_DROP)
-              PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'] ]
-              AZURE_BLOB_ACCOUNT_URL: $(AZURE_BLOB_ACCOUNT_URL)
-              AZURE_BLOB_CONTAINER: $(AZURE_BLOB_CONTAINER)
-              AZURE_BLOB_SAS: $(AZURE_BLOB_SAS)
+             DATABRICKS_HOST: $(Databricks_Host)
+             DATABRICKS_TOKEN: $(Databricks_Token)
+             DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+             ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
+             IS_DROP: $(PIPELINE_IS_DROP)
+             PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT']]
 
   - stage: Reconcile
     displayName: "Schema Reconciliation"
@@ -240,7 +237,7 @@ stages:
 
           - script: |
               python scripts/restore_from_backup.py
-            displayName: "Auto Restore (DATA or STATE)"
+            displayName: "Auto Restore from Backup Table"
             env:
               REVERT_COMMIT: $(REVERT_COMMIT)
               DATABRICKS_HOST: $(Databricks_Host)
