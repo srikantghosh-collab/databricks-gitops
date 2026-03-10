@@ -1,3 +1,11 @@
+CREATE SCHEMA IF NOT EXISTS ddl_backup_table;
+
+
+
+
+
+
+
 -- CREATE TABLE IF NOT EXISTS employee_pro11 (
 --     emp_id INT,
 --     emp_name STRING,
@@ -16,16 +24,16 @@
 --     'delta.logRetentionDuration' = 'interval 30 days',
 --     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 -- );
-ALTER TABLE employee_pro11 ADD COLUMNS (email STRING);
+-- ALTER TABLE employee_pro11 ADD COLUMNS (email STRING);
 
-ALTER TABLE employee_pro11 RENAME COLUMN emp_name TO full_name;
+-- ALTER TABLE employee_pro11 RENAME COLUMN emp_name TO full_name;
 
-ALTER TABLE employee_pro11 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
+-- ALTER TABLE employee_pro11 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 
-ALTER TABLE employee_pro11 SET TBLPROPERTIES ( 'quality' = 'silver',
-'modified_by' = 'devops_pipeline' );
+-- ALTER TABLE employee_pro11 SET TBLPROPERTIES ( 'quality' = 'silver',
+-- 'modified_by' = 'devops_pipeline' );
 
-ALTER TABLE employee_pro11 RENAME TO employee_sigmoid;
+-- ALTER TABLE employee_pro11 RENAME TO employee_sigmoid;
 
 
 
