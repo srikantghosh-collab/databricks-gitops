@@ -167,46 +167,31 @@ Return ONLY the rollback SQL statements in reverse order.
 """
 
 # ----------------------------------------
-# Prepare forward DDL batch
-# ----------------------------------------
-forward_sql_list = []
-previous_state_list = []
-
-for i, item in enumerate(ddls, start=1):
-    stmt = item["statement"]
-    prev_state = item.get("previous_state")
-
-    forward_sql_list.append(f"{i}. {stmt}")
-
-    previous_state_list.append({
-        "statement": stmt,
-        "previous_state": prev_state
-    })
-
-forward_sql_text = "\n".join(forward_sql_list)
-previous_state_text = json.dumps(previous_state_list, indent=2)
-
-# ----------------------------------------
-# Special handling for CREATE TABLE
+# Helper
 # ----------------------------------------
 
-first_stmt = ddls[0]["statement"].upper()
+def extract_table_name(sql):
+    m = re.search(
+        r"(CREATE|ALTER|DROP)\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)",
+        sql,
+        re.IGNORECASE
+    )
+    if m:
+        return m.group(3)
+    return None
 
 
-create_match = re.search(
-    r"CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([a-zA-Z0-9_.]+)",
-    first_stmt,
-    re.IGNORECASE
-)
+# ----------------------------------------
+# Generate rollback per DDL
+# ----------------------------------------
 
-if create_match:
+rollback_statements = []
 
-    table_name = create_match.group(2)
+for item in ddls:
 
-    # safest rollback
-    rollback_sql = f"DROP TABLE IF EXISTS {table_name};"
+    ddl_sql = item["statement"]
 
-else:
+    print(f"Generating rollback for: {ddl_sql}")
 
     response = client.chat.completions.create(
         model=os.environ["AZURE_DEPLOYMENT_NAME"],
@@ -216,16 +201,11 @@ else:
             {
                 "role": "user",
                 "content": f"""
-Forward DDL statements:
+Forward DDL statement:
 
-{forward_sql_text}
-
-Previous table state before the commit:
-
-{previous_state_text}
+{ddl_sql}
 
 Generate rollback SQL.
-Remember rollback must be in reverse order.
 """
             }
         ]
@@ -233,25 +213,34 @@ Remember rollback must be in reverse order.
 
     rollback_sql = response.choices[0].message.content.strip()
 
+    rollback_statements.append(rollback_sql)
+
+
 # ----------------------------------------
-# Safety check
+# Reverse order (IMPORTANT)
 # ----------------------------------------
 
-if "CREATE TABLE" in rollback_sql.upper():
-    print("ERROR: Unsafe rollback detected.")
-    sys.exit(1)
+rollback_statements.reverse()
 
 # ----------------------------------------
 # Convert to notebook cells
 # ----------------------------------------
 
-commands = [
-    cmd.strip()
-    for cmd in rollback_sql.split(";")
-    if cmd.strip()
-]
+commands = []
 
-formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
+for stmt in rollback_statements:
+
+    stmt = stmt.strip()
+
+    if not stmt:
+        continue
+
+    if not stmt.endswith(";") and "-- ROLLBACK NOT POSSIBLE" not in stmt:
+        stmt += ";"
+
+    commands.append(stmt)
+
+formatted_sql = "\n\n-- COMMAND ----------\n\n".join(commands)
 
 # ----------------------------------------
 # Write rollback.sql
