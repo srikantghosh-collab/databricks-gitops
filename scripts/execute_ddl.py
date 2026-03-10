@@ -79,6 +79,20 @@ def extract_table_name(ddl_sql):
     return None
 
 # =================================================
+# Detect Irreversible DDL
+# =================================================
+def is_irreversible(ddl_upper):
+
+    irreversible_patterns = [
+        "DROP COLUMN",
+        "DROP TABLE",
+        "REPLACE COLUMNS",
+        "ALTER COLUMN TYPE"
+    ]
+
+    return any(p in ddl_upper for p in irreversible_patterns)
+
+# =================================================
 # Dialect Validator
 # =================================================
 UNSUPPORTED_KEYWORDS = [
@@ -92,7 +106,6 @@ UNSUPPORTED_KEYWORDS = [
     "ENABLE ROW LEVEL SECURITY",
     "UNLOGGED",
     "SWITCH TO",
-    
 ]
 
 def validate_sql_dialect(ddl_sql):
@@ -131,7 +144,7 @@ def ensure_column_mapping_enabled(cursor, table_name):
     print(f"Column mapping enabled for {table_name}")
 
 # =================================================
-# ALTER TYPE → ALWAYS MIGRATION (Delta Safe)
+# ALTER TYPE SAFE MIGRATION
 # =================================================
 def parse_alter_type(ddl_sql):
     pattern = r"ALTER TABLE\s+(\S+)\s+ALTER COLUMN\s+(\S+)\s+TYPE\s+(.+)"
@@ -150,26 +163,50 @@ def generate_migration_sql(table, column, new_type):
     ]
 
 # =================================================
-# Create Backup Table (ddl_backup_table schema)
+# Check if backup required
 # =================================================
-
-tables_to_backup = set()
+backup_required = False
 
 for item in ddls:
-    table_name = extract_table_name(item["statement"])
-    if table_name:
-        tables_to_backup.add(table_name)
 
-for table in tables_to_backup:
+    ddl_sql = strip_comments(item["statement"])
+    ddl_upper = ddl_sql.upper()
 
-    backup_table = f"hive_metastore.ddl_backup_table.{table.split('.')[-1]}_backup_{commit_id}"
+    if is_irreversible(ddl_upper):
+        backup_required = True
+        break
 
-    print(f"Creating backup table → {backup_table}")
+# =================================================
+# Create Backup Table
+# =================================================
+if backup_required:
 
-    cursor.execute(f"""
-    CREATE TABLE IF NOT EXISTS {backup_table}
-    DEEP CLONE {table}
-    """)
+    print("Irreversible or mixed DDL detected → creating backup")
+
+    tables_to_backup = set()
+
+    for item in ddls:
+        table_name = extract_table_name(item["statement"])
+        if table_name:
+            tables_to_backup.add(table_name)
+
+    for table in tables_to_backup:
+
+        table_name = table.split('.')[-1]
+
+        source_table = f"hive_metastore.default.{table_name}"
+        backup_table = f"hive_metastore.ddl_backup_table.{table_name}_backup_{commit_id}"
+
+        print(f"Source table: {source_table}")
+        print(f"Backup table: {backup_table}")
+
+        cursor.execute(f"""
+        CREATE TABLE {backup_table}
+        DEEP CLONE {source_table}
+        """)
+
+else:
+    print("All DDL reversible → skipping backup creation")
 
 # =================================================
 # Execute DDLs
@@ -178,6 +215,7 @@ failed = False
 error_msg = None
 
 for item in ddls:
+
     ddl_sql = strip_comments(item["statement"])
     ddl_upper = ddl_sql.upper()
 
@@ -192,15 +230,18 @@ for item in ddls:
         print("\nExecuting DDL:")
         print(ddl_sql)
 
-        # 🔥 Handle ALTER TYPE via migration only
         if "ALTER TABLE" in ddl_upper and "ALTER COLUMN" in ddl_upper and "TYPE" in ddl_upper:
+
             table, column, new_type = parse_alter_type(ddl_sql)
+
             print("Using safe migration strategy for ALTER TYPE")
+
             migration_sql = generate_migration_sql(table, column, new_type)
 
             for stmt in migration_sql:
                 print(f"Executing: {stmt}")
                 cursor.execute(stmt)
+
         else:
             cursor.execute(ddl_sql)
 
