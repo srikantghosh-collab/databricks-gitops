@@ -176,7 +176,7 @@ for i, item in enumerate(ddls, start=1):
     stmt = item["statement"]
     prev_state = item.get("previous_state")
 
-    forward_sql_list.append(f"{i}. {stmt}")
+    forward_sql_list.append(stmt)
 
     previous_state_list.append({
         "statement": stmt,
@@ -248,7 +248,7 @@ if "CREATE TABLE" in rollback_sql.upper():
 commands = [
     cmd.strip()
     for cmd in rollback_sql.split(";")
-    if cmd.strip()
+    if cmd.strip() and not cmd.strip().startswith("--")
 ]
 
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
