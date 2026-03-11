@@ -17,13 +17,13 @@
 --     'delta.logRetentionDuration' = 'interval 30 days',
 --     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 -- );
-ALTER TABLE employee_pro2 ADD COLUMNS (email STRING);
+ALTER TABLE employee_pro3 ADD COLUMNS (email STRING);
 
-ALTER TABLE employee_pro2 RENAME COLUMN emp_name TO full_name;
+ALTER TABLE employee_pro3 RENAME COLUMN emp_name TO full_name;
 
-ALTER TABLE employee_pro2 DROP COLUMN department;
+ALTER TABLE employee_pro3 DROP COLUMN department;
 
-ALTER TABLE employee_pro2 ALTER COLUMN salary TYPE INT;
+ALTER TABLE employee_pro3 ALTER COLUMN salary TYPE INT;
 
 -- ALTER TABLE employee_pro12 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 

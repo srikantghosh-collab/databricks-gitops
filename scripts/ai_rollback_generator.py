@@ -248,7 +248,7 @@ if "CREATE TABLE" in rollback_sql.upper():
 commands = [
     cmd.strip()
     for cmd in rollback_sql.split(";")
-    if cmd.strip() and not cmd.strip().startswith("--")
+    if cmd.strip()
 ]
 
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
