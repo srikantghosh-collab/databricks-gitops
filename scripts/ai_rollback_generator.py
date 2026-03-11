@@ -50,7 +50,17 @@ STRICT OUTPUT RULES
 7. Rollback statements MUST appear in REVERSE ORDER of the forward DDL statements.
 8. If rollback is impossible output exactly:
    -- ROLLBACK NOT POSSIBLE
+9. Process each DDL statement independently.
 
+If some statements are irreversible, still generate rollback SQL
+for all reversible statements.
+
+Only mark the irreversible statements with:
+
+-- ROLLBACK NOT POSSIBLE
+
+Do not mark the entire rollback as impossible if only some
+statements cannot be reversed.
 --------------------------------------------------
 CREATE TABLE SPECIAL RULE
 --------------------------------------------------
