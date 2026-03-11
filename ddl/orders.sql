@@ -11,19 +11,26 @@ USING DELTA;
 INSERT INTO employee_pro7 VALUES
 (1, 'John', 'IT', 60000, current_timestamp()),
 (2, 'Sara', 'HR', 50000, current_timestamp()),
-(3, 'Mike', 'Finance', 70000, current_timestamp());
+(3, 'Mike', 'Finance', 70000, current_timestamp()),
+(4, 'David', 'IT', 65000, current_timestamp()),
+(5, 'Emma', 'HR', 52000, current_timestamp()),
+(6, 'Liam', 'Finance', 72000, current_timestamp()),
+(7, 'Olivia', 'Marketing', 58000, current_timestamp()),
+(8, 'Noah', 'Sales', 61000, current_timestamp()),
+(9, 'Ava', 'IT', 64000, current_timestamp()),
+(10, 'William', 'Finance', 75000, current_timestamp());
 
 ALTER TABLE employee_pro7 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );   
-ALTER TABLE employee_pro7 ADD COLUMNS (email STRING);
+-- ALTER TABLE employee_pro7 ADD COLUMNS (email STRING);
 
-ALTER TABLE employee_pro7 RENAME COLUMN emp_name TO full_name;
+-- ALTER TABLE employee_pro7 RENAME COLUMN emp_name TO full_name;
 
-ALTER TABLE employee_pro7 DROP COLUMN department;
+-- ALTER TABLE employee_pro7 DROP COLUMN department;
 
-ALTER TABLE employee_pro7 ALTER COLUMN salary TYPE INT;
+-- ALTER TABLE employee_pro7 ALTER COLUMN salary TYPE INT;
 
 -- ALTER TABLE employee_pro7 ALTER COLUMN salary COMMENT 'Monthly salary in INR';
 

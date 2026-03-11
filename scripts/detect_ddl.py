@@ -39,7 +39,8 @@ def extract_table_name(stmt):
         r"CREATE\s+TABLE\s+([^\s(]+)",
         r"ALTER\s+TABLE\s+([^\s;]+)",
         r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
-        r"DROP\s+TABLE\s+([^\s;]+)"
+        r"DROP\s+TABLE\s+([^\s;]+)",
+        r"INSERT\s+INTO\s+([^\s(]+)"
     ]
 
     for pattern in patterns:
@@ -70,7 +71,7 @@ with open(DDL_FILE) as f:
 
 statements = split_sql_statements(sql_text)
 
-DDL_PREFIXES = ("CREATE", "ALTER", "DROP")
+SQL_PREFIXES = ("CREATE", "ALTER", "DROP", "INSERT", "UPDATE", "DELETE", "MERGE")
 
 ddls = []
 counter = 1
@@ -79,7 +80,7 @@ for stmt in statements:
     stmt_clean = stmt.strip()
     stmt_upper = stmt_clean.upper()
 
-    if stmt_upper.startswith(DDL_PREFIXES):
+    if stmt_upper.startswith(SQL_PREFIXES):
 
         ddl_type = stmt_upper.split()[0]
         table_name = extract_table_name(stmt_clean)
