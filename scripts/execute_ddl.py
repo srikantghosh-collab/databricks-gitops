@@ -245,15 +245,14 @@ for item in ddls:
             cursor.execute(ddl_sql)
 
         cursor.execute(f"""
-            INSERT INTO ddl_audit_log VALUES (
-                current_timestamp(),
-                '{commit_id}',
-                '{ddl_sql.replace("'", "''")}',
-                'EXECUTE',
-                'SUCCESS'
-            )
-        """)
-
+          INSERT INTO hive_metastore.default.ddl_audit_log VALUES (
+            current_timestamp(),
+            '{commit_id}',
+            '{ddl_sql.replace("'", "''")}',
+            'EXECUTE',
+            'SUCCESS'
+          )
+      """)
     except Exception as e:
         failed = True
         error_msg = str(e)
