@@ -1,4 +1,4 @@
-
+USE schema demo_ddl_db;
 CREATE TABLE IF NOT EXISTS employee_pro15 (
     emp_id INT,
     emp_name STRING,
