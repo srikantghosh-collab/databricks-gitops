@@ -71,7 +71,7 @@ with open(DDL_FILE) as f:
 
 statements = split_sql_statements(sql_text)
 
-SQL_PREFIXES = ("CREATE", "ALTER", "DROP", "INSERT", "UPDATE", "DELETE", "MERGE")
+SQL_PREFIXES = ("USE","CREATE", "ALTER", "DROP", "INSERT", "UPDATE", "DELETE", "MERGE")
 
 ddls = []
 counter = 1

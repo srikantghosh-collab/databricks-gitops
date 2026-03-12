@@ -53,8 +53,7 @@ conn = sql.connect(
 
 cursor = conn.cursor()
 cursor.execute("USE CATALOG hive_metastore")
-cursor.execute("USE SCHEMA default")
-print("Catalog & schema set")
+print("Catalog set")
 
 # =================================================
 # Helpers
