@@ -1,5 +1,7 @@
+USE CATALOG hive_metastore;
+USE SCHEMA demo_ddl_db;
 
-CREATE TABLE IF NOT EXISTS demo_ddl_db.employee_pro15 (
+CREATE TABLE IF NOT EXISTS employee_pro16 (
     emp_id INT,
     emp_name STRING,
     department STRING,
@@ -8,7 +10,7 @@ CREATE TABLE IF NOT EXISTS demo_ddl_db.employee_pro15 (
 )
 USING DELTA;
 
-INSERT INTO employee_pro15 VALUES
+INSERT INTO employee_pro16 VALUES
 (1, 'John', 'IT', 60000, current_timestamp()),
 (2, 'Sara', 'HR', 50000, current_timestamp()),
 (3, 'Mike', 'Finance', 70000, current_timestamp());
@@ -20,7 +22,7 @@ INSERT INTO employee_pro15 VALUES
 -- (9, 'Ava', 'IT', 64000, current_timestamp()),
 -- (10, 'William', 'Finance', 75000, current_timestamp());
 
-ALTER TABLE employee_pro15 SET TBLPROPERTIES (
+ALTER TABLE employee_pro16 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 );   
