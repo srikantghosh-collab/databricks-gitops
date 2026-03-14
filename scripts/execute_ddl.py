@@ -12,7 +12,7 @@ print("Starting DDL execution...")
 # =================================================
 is_revert = os.environ.get("PIPELINE_IS_REVERT", "no") == "yes"
 if is_revert:
-    print("Git revert detected → skipping Execute DDL & backups")
+    print("Git revert detected → skipping Execute DDL")
     sys.exit(0)
 
 DDL_ARTIFACT = "ddl_output.json"
@@ -27,20 +27,20 @@ if not os.path.exists(DDL_ARTIFACT):
 with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
-ddls = payload.get("ddls", [])
-if not ddls:
-    print("No DDL statements to execute — exiting")
+migrations = payload.get("migrations", [])
+
+if not migrations:
+    print("No migration scripts to execute — exiting")
     sys.exit(0)
+
+# enforce migration order
+migrations = sorted(migrations, key=lambda x: x["script_name"])
 
 commit_id = payload.get("commit_id") or subprocess.check_output(
     ["git", "rev-parse", "HEAD"], text=True
 ).strip()
 
-rollback_type = os.environ.get("ROLLBACK_TYPE", "NONE")
-is_drop = os.environ.get("IS_DROP", "false") == "true"
-
-print(f"Rollback type: {rollback_type}")
-print(f"Is drop: {is_drop}")
+print(f"Commit ID: {commit_id}")
 
 # =================================================
 # Connect to Databricks
@@ -48,20 +48,42 @@ print(f"Is drop: {is_drop}")
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    access_token=os.environ["DATABRICKS_TOKEN"],
+    auth_type="azure-client-secret",
+    azure_client_id=os.environ["DATABRICKS_CLIENT_ID"],
+    azure_client_secret=os.environ["CLIENT_SECRET"],
+    azure_tenant_id=os.environ["TENANT_ID"],
 )
 
 cursor = conn.cursor()
+
 cursor.execute("USE CATALOG hive_metastore")
-print("Catalog set")
+
+print("Connected to Databricks")
 
 # =================================================
 # Helpers
 # =================================================
+
 def strip_comments(sql_text):
     sql_text = re.sub(r"/\*.*?\*/", "", sql_text, flags=re.DOTALL)
     sql_text = re.sub(r"--.*", "", sql_text)
     return sql_text.strip()
+
+
+def read_sql_file(path):
+
+    with open(path) as f:
+        sql_text = f.read()
+
+    statements = []
+
+    for stmt in sql_text.split(";"):
+        stmt = strip_comments(stmt).strip()
+        if stmt:
+            statements.append(stmt)
+
+    return statements
+
 
 def extract_table_name(ddl_sql):
     patterns = [
@@ -71,29 +93,31 @@ def extract_table_name(ddl_sql):
         r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
         r"DROP\s+TABLE\s+([^\s;]+)"
     ]
+
     for p in patterns:
         m = re.search(p, ddl_sql, re.IGNORECASE)
         if m:
             return m.group(1)
+
     return None
 
-# =================================================
-# Detect Irreversible DDL
-# =================================================
-def is_irreversible(ddl_upper):
 
-    irreversible_patterns = [
-        "DROP COLUMN",
-        "DROP TABLE",
-        "REPLACE COLUMNS",
-        "ALTER COLUMN TYPE"
-    ]
+def get_execution_status(cursor, script_name):
 
-    return any(p in ddl_upper for p in irreversible_patterns)
+    cursor.execute(f"""
+        SELECT status, last_executed_cell
+        FROM hive_metastore.default.ddl_execution_log
+        WHERE script_name = '{script_name}'
+    """)
 
-# =================================================
-# Dialect Validator
-# =================================================
+    row = cursor.fetchone()
+
+    if row:
+        return row[0], row[1]
+
+    return None, 0
+
+
 UNSUPPORTED_KEYWORDS = [
     "ALTER INDEX",
     "SEQUENCE",
@@ -103,165 +127,134 @@ UNSUPPORTED_KEYWORDS = [
     "DETACH PARTITION",
     "ALTER DATABASE",
     "ENABLE ROW LEVEL SECURITY",
-    "UNLOGGED",
-    "SWITCH TO",
 ]
 
 def validate_sql_dialect(ddl_sql):
+
     ddl_upper = ddl_sql.upper()
+
     for kw in UNSUPPORTED_KEYWORDS:
         if kw in ddl_upper:
             raise Exception(f"Unsupported SQL for Databricks Delta: {kw}")
 
-# =================================================
-# Column Mapping
-# =================================================
-def needs_column_mapping(ddl_upper: str) -> bool:
+
+def needs_column_mapping(ddl_upper: str):
+
     patterns = [
         "RENAME COLUMN",
         "CHANGE COLUMN",
         "DROP COLUMN",
         "REPLACE COLUMNS",
-        "ALTER COLUMN",
+        "ALTER COLUMN"
     ]
+
     return any(p in ddl_upper for p in patterns)
 
+
 def ensure_column_mapping_enabled(cursor, table_name):
+
     cursor.execute(f"SHOW TBLPROPERTIES {table_name}")
+
     props = {row[0]: row[1] for row in cursor.fetchall()}
+
     mode = props.get("delta.columnMapping.mode")
 
     if mode == "name":
-        print(f"Column mapping already enabled for {table_name}")
         return
 
-    print(f"Enabling column mapping for {table_name}...")
+    print(f"Enabling column mapping for {table_name}")
+
     cursor.execute(f"""
         ALTER TABLE {table_name}
-        SET TBLPROPERTIES ('delta.columnMapping.mode' = 'name')
+        SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
     """)
-    print(f"Column mapping enabled for {table_name}")
+
 
 # =================================================
-# ALTER TYPE SAFE MIGRATION
+# Execute Migrations
 # =================================================
-def parse_alter_type(ddl_sql):
-    pattern = r"ALTER TABLE\s+(\S+)\s+ALTER COLUMN\s+(\S+)\s+TYPE\s+(.+)"
-    match = re.search(pattern, ddl_sql, re.IGNORECASE)
-    if match:
-        return match.group(1), match.group(2), match.group(3).strip()
-    return None, None, None
 
-def generate_migration_sql(table, column, new_type):
-    tmp_col = f"{column}__tmp"
-    return [
-        f"ALTER TABLE {table} ADD COLUMN {tmp_col} {new_type}",
-        f"UPDATE {table} SET {tmp_col} = CAST({column} AS {new_type})",
-        f"ALTER TABLE {table} DROP COLUMN {column}",
-        f"ALTER TABLE {table} RENAME COLUMN {tmp_col} TO {column}"
-    ]
+for migration in migrations:
 
-# =================================================
-# Check if backup required
-# =================================================
-backup_required = False
+    script_name = migration["script_name"]
+    script_path = migration["path"]
 
-for item in ddls:
+    print(f"\nProcessing migration: {script_name}")
 
-    ddl_sql = strip_comments(item["statement"])
-    ddl_upper = ddl_sql.upper()
+    status, last_cell = get_execution_status(cursor, script_name)
 
-    if is_irreversible(ddl_upper):
-        backup_required = True
-        break
+    if status == "SUCCESS":
+        print("Already executed → skipping")
+        continue
 
-# =================================================
-# Create Backup Table
-# =================================================
-if backup_required:
+    statements = read_sql_file(script_path)
 
-    print("Irreversible or mixed DDL detected → creating backup")
+    for i, ddl_sql in enumerate(statements):
 
-    tables_to_backup = set()
+        if i < last_cell:
+            continue
 
-    for item in ddls:
-        table_name = extract_table_name(item["statement"])
-        if table_name:
-            tables_to_backup.add(table_name)
+        ddl_upper = ddl_sql.upper()
 
-    for table in tables_to_backup:
+        try:
 
-        table_name = table.split('.')[-1]
+            validate_sql_dialect(ddl_sql)
 
-        source_table = f"hive_metastore.default.{table_name}"
-        backup_table = f"hive_metastore.ddl_backup_table.{table_name}_backup_{commit_id}"
+            table_name = extract_table_name(ddl_sql)
 
-        print(f"Source table: {source_table}")
-        print(f"Backup table: {backup_table}")
+            if table_name and needs_column_mapping(ddl_upper):
+                ensure_column_mapping_enabled(cursor, table_name)
 
-        cursor.execute(f"""
-        CREATE TABLE {backup_table}
-        DEEP CLONE {source_table}
-        """)
+            print(f"Executing cell {i+1}: {ddl_sql}")
 
-else:
-    print("All DDL reversible → skipping backup creation")
-
-# =================================================
-# Execute DDLs
-# =================================================
-failed = False
-error_msg = None
-
-for item in ddls:
-
-    ddl_sql = strip_comments(item["statement"])
-    ddl_upper = ddl_sql.upper()
-
-    try:
-        validate_sql_dialect(ddl_sql)
-
-        table_name = extract_table_name(ddl_sql)
-
-        if table_name and needs_column_mapping(ddl_upper):
-            ensure_column_mapping_enabled(cursor, table_name)
-
-        print("\nExecuting DDL:")
-        print(ddl_sql)
-
-        if "ALTER TABLE" in ddl_upper and "ALTER COLUMN" in ddl_upper and "TYPE" in ddl_upper:
-
-            table, column, new_type = parse_alter_type(ddl_sql)
-
-            print("Using safe migration strategy for ALTER TYPE")
-
-            migration_sql = generate_migration_sql(table, column, new_type)
-
-            for stmt in migration_sql:
-                print(f"Executing: {stmt}")
-                cursor.execute(stmt)
-
-        else:
             cursor.execute(ddl_sql)
 
-        cursor.execute(f"""
-          INSERT INTO hive_metastore.default.ddl_audit_log VALUES (
-            current_timestamp(),
-            '{commit_id}',
-            '{ddl_sql.replace("'", "''")}',
-            'EXECUTE',
-            'SUCCESS'
-          )
-      """)
-    except Exception as e:
-        failed = True
-        error_msg = str(e)
-        break
+            cursor.execute(f"""
+                MERGE INTO hive_metastore.default.ddl_execution_log t
+                USING (SELECT '{script_name}' AS script_name) s
+                ON t.script_name = s.script_name
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        status='RUNNING',
+                        last_executed_cell={i+1},
+                        executed_at=current_timestamp()
+                WHEN NOT MATCHED THEN
+                    INSERT VALUES
+                    ('{script_name}','RUNNING',{i+1},current_timestamp())
+            """)
+
+        except Exception as e:
+
+            cursor.execute(f"""
+                MERGE INTO hive_metastore.default.ddl_execution_log t
+                USING (SELECT '{script_name}' AS script_name) s
+                ON t.script_name = s.script_name
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        status='FAILED',
+                        last_executed_cell={i}
+            """)
+
+            cursor.close()
+            conn.close()
+
+            raise e
+
+    cursor.execute(f"""
+        MERGE INTO hive_metastore.default.ddl_execution_log t
+        USING (SELECT '{script_name}' AS script_name) s
+        ON t.script_name = s.script_name
+        WHEN MATCHED THEN
+            UPDATE SET
+                status='SUCCESS',
+                last_executed_cell={len(statements)},
+                executed_at=current_timestamp()
+        WHEN NOT MATCHED THEN
+            INSERT VALUES
+            ('{script_name}','SUCCESS',{len(statements)},current_timestamp())
+    """)
 
 cursor.close()
 conn.close()
 
-if failed:
-    raise Exception(f"DDL execution stopped due to failure: {error_msg}")
-
-print("\nAll DDL statements executed successfully")
+print("\nAll DDL migration scripts executed successfully")

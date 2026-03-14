@@ -8,7 +8,7 @@ print(" Starting schema reconciliation...")
 # CONFIG
 
 CATALOG = "hive_metastore"
-SCHEMA = "default"
+SCHEMA = os.environ.get("DDL_SCHEMA", "default")
 
 # AUTO_FIX toggle (default = false for safety)
 AUTO_FIX = os.environ.get("AUTO_FIX", "false").lower() == "true"
@@ -22,7 +22,10 @@ print(f"AUTO_FIX mode: {AUTO_FIX}")
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    access_token=os.environ["DATABRICKS_TOKEN"]
+    auth_type="azure-client-secret",
+    azure_client_id=os.environ["DATABRICKS_CLIENT_ID"],
+    azure_client_secret=os.environ["CLIENT_SECRET"],
+    azure_tenant_id=os.environ["TENANT_ID"],
 )
 
 cursor = conn.cursor()
@@ -91,7 +94,7 @@ def build_create_sql(table_def):
 
     columns_sql = ", ".join(cols)
 
-    return f"CREATE TABLE {table_def['name']} ({columns_sql})"
+    return f"CREATE TABLE {table_def['name']} ({columns_sql}) USING DELTA"
 
 # Auto-fix: Create missing tables
 
@@ -130,7 +133,7 @@ PROTECTED_TABLES = {"ddl_audit_log"}
 for table_name in extra:
 
     # Skip protected & backup tables
-    if table_name in PROTECTED_TABLES or "_backup_" in table_name:
+    if table_name in PROTECTED_TABLES:
         print(f"Skipping protected table: {table_name}")
         continue
 

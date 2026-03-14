@@ -1,31 +1,22 @@
 USE CATALOG hive_metastore;
 USE SCHEMA demo_ddl_db;
 
-CREATE TABLE IF NOT EXISTS employee_pro17 (
-    emp_id INT,
-    emp_name STRING,
-    department STRING,
-    salary DECIMAL(10,2),
-    created_date TIMESTAMP
-)
-USING DELTA;
-
-INSERT INTO employee_pro17 VALUES
+INSERT INTO employee_pro18 VALUES
 (1, 'John', 'IT', 60000, current_timestamp()),
 (2, 'Sara', 'HR', 50000, current_timestamp()),
-(3, 'Mike', 'Finance', 70000, current_timestamp());
--- (4, 'David', 'IT', 65000, current_timestamp()),
--- (5, 'Emma', 'HR', 52000, current_timestamp()),
--- (6, 'Liam', 'Finance', 72000, current_timestamp()),
--- (7, 'Olivia', 'Marketing', 58000, current_timestamp()),
--- (8, 'Noah', 'Sales', 61000, current_timestamp()),
--- (9, 'Ava', 'IT', 64000, current_timestamp()),
--- (10, 'William', 'Finance', 75000, current_timestamp());
+(3, 'Mike', 'Finance', 70000, current_timestamp()),
+(4, 'David', 'IT', 65000, current_timestamp()),
+(5, 'Emma', 'HR', 52000, current_timestamp()),
+(6, 'Liam', 'Finance', 72000, current_timestamp()),
+(7, 'Olivia', 'Marketing', 58000, current_timestamp()),
+(8, 'Noah', 'Sales', 61000, current_timestamp()),
+(9, 'Ava', 'IT', 64000, current_timestamp()),
+(10, 'William', 'Finance', 75000, current_timestamp());
 
-ALTER TABLE employee_pro17 SET TBLPROPERTIES (
-    'delta.logRetentionDuration' = 'interval 30 days',
-    'delta.deletedFileRetentionDuration' = 'interval 30 days'
-);   
+-- ALTER TABLE employee_pro17 SET TBLPROPERTIES (
+--     'delta.logRetentionDuration' = 'interval 30 days',
+--     'delta.deletedFileRetentionDuration' = 'interval 30 days'
+-- );   
 -- DROP TABLE employee_pro14;
 -- ALTER TABLE employee_pro14 ADD COLUMNS (email STRING);
 

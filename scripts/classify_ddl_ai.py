@@ -9,6 +9,7 @@ DDL_ARTIFACT = "ddl_output.json"
 # --------------------------------
 # Load DDL artifact
 # --------------------------------
+
 if not os.path.exists(DDL_ARTIFACT):
     print("No ddl_output.json found — skipping classification")
     print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
@@ -29,6 +30,7 @@ if not ddls:
 # --------------------------------
 # Prepare AI input
 # --------------------------------
+
 ddl_statements = "\n".join(d["statement"] for d in ddls)
 
 system_prompt = """
@@ -36,21 +38,22 @@ You are a Databricks Delta Lake DDL expert.
 
 Classify the given DDL statements.
 
-You MUST return ONLY ONE of the following classifications:
+Return ONLY ONE of the following classifications:
 
 CREATE_TABLE
-ALTER_REVERSIBLE
-ALTER_IRREVERSIBLE
+ALTER_TABLE
 DROP_TABLE
 
 Rules:
-- CREATE TABLE → CREATE_TABLE
-- DROP TABLE → DROP_TABLE
-- ALTER TABLE that can be safely reversed (ADD COLUMN, RENAME COLUMN with mapping) → ALTER_REVERSIBLE
-- ALTER TABLE that can cause data loss or state loss (DROP COLUMN, ALTER TYPE, SET properties) → ALTER_IRREVERSIBLE
+
+CREATE TABLE → CREATE_TABLE
+
+ALTER TABLE → ALTER_TABLE
+
+DROP TABLE → DROP_TABLE
 
 Return ONLY the classification name.
-No explanations.
+No explanation.
 """
 
 user_prompt = f"""
@@ -62,6 +65,7 @@ Classify the following DDL statements:
 # --------------------------------
 # Call Azure OpenAI
 # --------------------------------
+
 client = AzureOpenAI(
     api_key=os.environ["AZURE_OPENAI_KEY"],
     azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
@@ -78,33 +82,30 @@ response = client.chat.completions.create(
 )
 
 ai_class = response.choices[0].message.content.strip().upper()
-print(f"AI classification: {ai_class}")
+
+print("AI classification:", ai_class)
 
 VALID_CLASSES = {
     "CREATE_TABLE",
-    "ALTER_REVERSIBLE",
-    "ALTER_IRREVERSIBLE",
+    "ALTER_TABLE",
     "DROP_TABLE"
 }
 
 if ai_class not in VALID_CLASSES:
-    print("Invalid AI classification. Defaulting to ALTER_IRREVERSIBLE.")
-    ai_class = "ALTER_IRREVERSIBLE"
+    print("Invalid AI classification — defaulting to ALTER_TABLE")
+    ai_class = "ALTER_TABLE"
 
 # --------------------------------
-# Derive rollback behavior
+# Derive pipeline behavior
 # --------------------------------
+
 if ai_class == "DROP_TABLE":
     is_drop = True
-    rollback_type = "IRREVERSIBLE"
+    rollback_type = "AI_RECONSTRUCT"
 
-elif ai_class == "ALTER_IRREVERSIBLE":
+elif ai_class in ("CREATE_TABLE", "ALTER_TABLE"):
     is_drop = False
-    rollback_type = "PARTIAL"
-
-elif ai_class in ("CREATE_TABLE", "ALTER_REVERSIBLE"):
-    is_drop = False
-    rollback_type = "REVERSIBLE"
+    rollback_type = "AI_RECONSTRUCT"
 
 else:
     is_drop = False
@@ -113,6 +114,7 @@ else:
 # --------------------------------
 # Final logs
 # --------------------------------
+
 print("Final Classification:", ai_class)
 print("Rollback Type:", rollback_type)
 print("Is Drop:", is_drop)
@@ -122,6 +124,6 @@ print("Is Drop:", is_drop)
 # --------------------------------
 
 is_drop_str = str(is_drop).lower()
+
 print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{is_drop_str}")
 print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
-#print(f"##vso[task.setvariable variable=BACKUP_MODE;isOutput=true]{backup_mode_value}")

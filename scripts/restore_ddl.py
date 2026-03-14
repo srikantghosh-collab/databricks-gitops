@@ -1,10 +1,28 @@
-import os, subprocess
+import os
+import subprocess
 
-backup = os.listdir("ledger/schema_backup")[0]
-with open(f"ledger/schema_backup/{backup}") as f:
-    sql = f.read()
+ROLLBACK_FILE = "rollback.sql"
 
-cmd = f'databricks sql execute --warehouse-id $WAREHOUSE_ID --command "{sql}"'
-subprocess.check_call(cmd, shell=True)
+if not os.path.exists(ROLLBACK_FILE):
+    print("rollback.sql not found — nothing to restore")
+    exit(0)
 
-print("Table restored")
+with open(ROLLBACK_FILE) as f:
+    sql_text = f.read()
+
+# split SQL statements safely
+statements = [
+    stmt.strip()
+    for stmt in sql_text.split(";")
+    if stmt.strip()
+]
+
+print(f"Executing {len(statements)} rollback statements")
+
+for stmt in statements:
+
+    cmd = f'databricks sql execute --warehouse-id $WAREHOUSE_ID --command "{stmt}"'
+
+    subprocess.check_call(cmd, shell=True)
+
+print("Rollback executed successfully")
