@@ -3,7 +3,6 @@ import os
 import sys
 import re
 from openai import AzureOpenAI
-from databricks import sql
 
 print("Starting AI rollback generation...")
 
@@ -40,22 +39,7 @@ client = AzureOpenAI(
 )
 
 # ----------------------------------------
-# Databricks Connection (Service Principal)
-# ----------------------------------------
-
-conn = sql.connect(
-    server_hostname=os.environ["DATABRICKS_HOST"],
-    http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    auth_type="azure-client-secret",
-    azure_client_id=os.environ["DATABRICKS_CLIENT_ID"],
-    azure_client_secret=os.environ["CLIENT_SECRET"],
-    azure_tenant_id=os.environ["TENANT_ID"],
-)
-
-cursor = conn.cursor()
-
-# ----------------------------------------
-# System Prompt
+# System Prompt (UNCHANGED)
 # ----------------------------------------
 
 SYSTEM_PROMPT = """You are an expert Databricks Delta Lake database reliability engineer.
@@ -233,7 +217,7 @@ Use metadata to reconstruct rollback SQL whenever possible.
 """
 
 # ----------------------------------------
-# Helper: Extract table name
+# Extract table name
 # ----------------------------------------
 
 def extract_table_name(stmt):
@@ -241,10 +225,7 @@ def extract_table_name(stmt):
     patterns = [
         r"CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([^\s(]+)",
         r"ALTER\s+TABLE\s+([^\s]+)",
-        r"DROP\s+TABLE\s+(IF\s+EXISTS\s+)?([^\s]+)",
-        r"INSERT\s+INTO\s+([^\s(]+)",
-        r"UPDATE\s+([^\s]+)",
-        r"MERGE\s+INTO\s+([^\s]+)"
+        r"DROP\s+TABLE\s+(IF\s+EXISTS\s+)?([^\s]+)"
     ]
 
     for p in patterns:
@@ -253,27 +234,6 @@ def extract_table_name(stmt):
             return m.group(m.lastindex)
 
     return None
-
-
-# ----------------------------------------
-# Fetch table schema
-# ----------------------------------------
-
-def get_table_schema(table):
-
-    try:
-        cursor.execute(f"DESCRIBE TABLE {table}")
-        rows = cursor.fetchall()
-
-        schema = [
-            {"column": r[0], "type": r[1]}
-            for r in rows if r[0] and not r[0].startswith("#")
-        ]
-
-        return schema
-
-    except Exception:
-        return None
 
 
 # ----------------------------------------
@@ -317,10 +277,10 @@ if not forward_statements:
     open("rollback.sql", "w").close()
     sys.exit(0)
 
-print(f"Detected {len(forward_statements)} SQL statements")
+print(f"Detected {len(forward_statements)} DDL statements")
 
 # ----------------------------------------
-# Build metadata payload
+# Build metadata payload (NO DB CALLS)
 # ----------------------------------------
 
 metadata_payload = []
@@ -329,14 +289,10 @@ for stmt in forward_statements:
 
     table = extract_table_name(stmt)
 
-    schema = None
-    if table:
-        schema = get_table_schema(table)
-
     metadata_payload.append({
         "statement": stmt,
         "table": table,
-        "schema": schema
+        "schema": None
     })
 
 forward_sql_text = "\n".join(forward_statements)
@@ -346,13 +302,9 @@ metadata_text = json.dumps(metadata_payload, indent=2)
 # Call Azure OpenAI
 # ----------------------------------------
 
-# ----------------------------------------
-# Call Azure OpenAI
-# ----------------------------------------
-
 try:
 
-    print("Calling Azure OpenAI to generate rollback SQL...")
+    print("Calling Azure OpenAI...")
 
     prompt = f"""
 Forward DDL statements:
@@ -369,7 +321,6 @@ Generate rollback SQL.
     response = client.chat.completions.create(
         model=os.environ["AZURE_DEPLOYMENT_NAME"],
         temperature=0,
-        timeout=60,   # prevents pipeline hanging
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt}
@@ -378,12 +329,11 @@ Generate rollback SQL.
 
     rollback_sql = response.choices[0].message.content.strip()
 
-    print("AI rollback generation completed")
+    print("AI rollback generated")
 
 except Exception as e:
 
     print("AI rollback generation failed:", str(e))
-
     rollback_sql = "-- ROLLBACK GENERATION FAILED"
 
 # ----------------------------------------
@@ -424,8 +374,5 @@ rollback_path = os.path.join(
 
 with open(rollback_path, "w") as f:
     f.write(formatted_sql)
-
-cursor.close()
-conn.close()
 
 print(f"Rollback SQL generated successfully: {rollback_path}")
