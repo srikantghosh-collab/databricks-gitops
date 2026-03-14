@@ -301,6 +301,17 @@ for migration in migrations:
 
     forward_statements.extend(statements)
 
+# ----------------------------------------
+# Filter only DDL statements
+# ----------------------------------------
+
+DDL_KEYWORDS = ("CREATE", "ALTER", "DROP")
+
+forward_statements = [
+    s for s in forward_statements
+    if s.upper().startswith(DDL_KEYWORDS)
+]
+
 if not forward_statements:
     print("No SQL statements detected in migrations")
     open("rollback.sql", "w").close()
@@ -335,14 +346,15 @@ metadata_text = json.dumps(metadata_payload, indent=2)
 # Call Azure OpenAI
 # ----------------------------------------
 
-response = client.chat.completions.create(
-    model=os.environ["AZURE_DEPLOYMENT_NAME"],
-    temperature=0,
-    messages=[
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": f"""
+# ----------------------------------------
+# Call Azure OpenAI
+# ----------------------------------------
+
+try:
+
+    print("Calling Azure OpenAI to generate rollback SQL...")
+
+    prompt = f"""
 Forward DDL statements:
 
 {forward_sql_text}
@@ -353,11 +365,26 @@ Table metadata:
 
 Generate rollback SQL.
 """
-        }
-    ]
-)
 
-rollback_sql = response.choices[0].message.content.strip()
+    response = client.chat.completions.create(
+        model=os.environ["AZURE_DEPLOYMENT_NAME"],
+        temperature=0,
+        timeout=60,   # prevents pipeline hanging
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    rollback_sql = response.choices[0].message.content.strip()
+
+    print("AI rollback generation completed")
+
+except Exception as e:
+
+    print("AI rollback generation failed:", str(e))
+
+    rollback_sql = "-- ROLLBACK GENERATION FAILED"
 
 # ----------------------------------------
 # Safety check
