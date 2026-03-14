@@ -5,24 +5,32 @@ import re
 from openai import AzureOpenAI
 from databricks import sql
 
+print("Starting AI rollback generation...")
+
 DDL_ARTIFACT = "ddl_output.json"
+
+# ----------------------------------------
+# Validate artifact
+# ----------------------------------------
 
 if not os.path.exists(DDL_ARTIFACT):
     print("DDL artifact not found")
+    open("rollback.sql", "w").close()
     sys.exit(0)
 
 with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
-ddls = payload.get("ddls", [])
+migrations = payload.get("migrations", [])
 commit_id = payload.get("commit_id")
 
-if not ddls:
-    print("No DDL statements found")
+if not migrations:
+    print("No migration scripts found")
+    open("rollback.sql", "w").close()
     sys.exit(0)
 
 # ----------------------------------------
-# Azure OpenAI client
+# Azure OpenAI Client
 # ----------------------------------------
 
 client = AzureOpenAI(
@@ -32,7 +40,7 @@ client = AzureOpenAI(
 )
 
 # ----------------------------------------
-# Databricks connection
+# Databricks Connection (Service Principal)
 # ----------------------------------------
 
 conn = sql.connect(
@@ -47,7 +55,7 @@ conn = sql.connect(
 cursor = conn.cursor()
 
 # ----------------------------------------
-# SYSTEM PROMPT (UNCHANGED)
+# System Prompt
 # ----------------------------------------
 
 SYSTEM_PROMPT = """You are an expert Databricks Delta Lake database reliability engineer.
@@ -65,15 +73,15 @@ STRICT OUTPUT RULES
 2. Do NOT include the original DDL statements.
 3. Do NOT include explanations or headers.
 4. Do NOT include metadata or comments except one case:
-   -- ROLLBACK NOT POSSIBLE
+-- ROLLBACK NOT POSSIBLE
 5. Statements must be executable in Databricks SQL.
 6. Never hardcode table names. Use the names from the input DDL.
 7. Rollback statements MUST appear in REVERSE ORDER of the forward DDL statements.
 8. Process each DDL statement independently.
 9. Use the provided table metadata to reconstruct rollback SQL whenever possible.
 10. Only output:
-    -- ROLLBACK NOT POSSIBLE
-    if the rollback truly cannot be determined even using the provided metadata.
+-- ROLLBACK NOT POSSIBLE
+if the rollback truly cannot be determined even using the provided metadata.
 
 If some statements cannot be reversed, still generate rollback SQL
 for all reversible statements.
@@ -128,8 +136,8 @@ Rollback:
 Recreate the table using the provided metadata schema.
 Example:
 CREATE TABLE table_name (
-  column1 TYPE,
-  column2 TYPE
+column1 TYPE,
+column2 TYPE
 )
 USING DELTA;
 
@@ -225,22 +233,22 @@ Use metadata to reconstruct rollback SQL whenever possible.
 """
 
 # ----------------------------------------
-# Extract table name
+# Helper: Extract table name
 # ----------------------------------------
 
-def extract_table_name(ddl):
+def extract_table_name(stmt):
 
     patterns = [
-    r"CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([^\s(]+)",
-    r"ALTER\s+TABLE\s+([^\s]+)",
-    r"DROP\s+TABLE\s+(IF\s+EXISTS\s+)?([^\s]+)",
-    r"INSERT\s+INTO\s+([^\s(]+)",
-    r"UPDATE\s+([^\s]+)",
-    r"MERGE\s+INTO\s+([^\s]+)"
-]
+        r"CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?([^\s(]+)",
+        r"ALTER\s+TABLE\s+([^\s]+)",
+        r"DROP\s+TABLE\s+(IF\s+EXISTS\s+)?([^\s]+)",
+        r"INSERT\s+INTO\s+([^\s(]+)",
+        r"UPDATE\s+([^\s]+)",
+        r"MERGE\s+INTO\s+([^\s]+)"
+    ]
 
     for p in patterns:
-        m = re.search(p, ddl, re.IGNORECASE)
+        m = re.search(p, stmt, re.IGNORECASE)
         if m:
             return m.group(m.lastindex)
 
@@ -248,13 +256,13 @@ def extract_table_name(ddl):
 
 
 # ----------------------------------------
-# Fetch schema from catalog
+# Fetch table schema
 # ----------------------------------------
 
-def get_table_schema(table_name):
+def get_table_schema(table):
 
     try:
-        cursor.execute(f"DESCRIBE TABLE {table_name}")
+        cursor.execute(f"DESCRIBE TABLE {table}")
         rows = cursor.fetchall()
 
         schema = [
@@ -269,35 +277,62 @@ def get_table_schema(table_name):
 
 
 # ----------------------------------------
-# Prepare forward SQL + metadata
+# Read migration SQL files
 # ----------------------------------------
 
-forward_sql_list = []
-metadata_list = []
+forward_statements = []
 
-for item in ddls:
+for migration in migrations:
 
-    stmt = item["statement"]
+    path = migration["path"]
 
-    forward_sql_list.append(stmt)
+    if not os.path.exists(path):
+        print(f"Warning: {path} not found")
+        continue
 
-    table_name = extract_table_name(stmt)
+    with open(path) as f:
+        sql_text = f.read()
+
+    statements = [
+        s.strip()
+        for s in sql_text.split(";")
+        if s.strip()
+    ]
+
+    forward_statements.extend(statements)
+
+if not forward_statements:
+    print("No SQL statements detected in migrations")
+    open("rollback.sql", "w").close()
+    sys.exit(0)
+
+print(f"Detected {len(forward_statements)} SQL statements")
+
+# ----------------------------------------
+# Build metadata payload
+# ----------------------------------------
+
+metadata_payload = []
+
+for stmt in forward_statements:
+
+    table = extract_table_name(stmt)
 
     schema = None
-    if table_name:
-        schema = get_table_schema(table_name)
+    if table:
+        schema = get_table_schema(table)
 
-    metadata_list.append({
+    metadata_payload.append({
         "statement": stmt,
-        "table": table_name,
+        "table": table,
         "schema": schema
     })
 
-forward_sql_text = "\n".join(forward_sql_list)
-metadata_text = json.dumps(metadata_list, indent=2)
+forward_sql_text = "\n".join(forward_statements)
+metadata_text = json.dumps(metadata_payload, indent=2)
 
 # ----------------------------------------
-# Generate rollback using AI
+# Call Azure OpenAI
 # ----------------------------------------
 
 response = client.chat.completions.create(
@@ -312,7 +347,7 @@ Forward DDL statements:
 
 {forward_sql_text}
 
-Table metadata from system catalog:
+Table metadata:
 
 {metadata_text}
 
@@ -324,9 +359,10 @@ Generate rollback SQL.
 
 rollback_sql = response.choices[0].message.content.strip()
 
+# ----------------------------------------
+# Safety check
+# ----------------------------------------
 
-
-# Safety check (only block dangerous operations)
 dangerous_patterns = [
     "DROP DATABASE",
     "TRUNCATE TABLE",
@@ -335,11 +371,11 @@ dangerous_patterns = [
 
 for pattern in dangerous_patterns:
     if pattern in rollback_sql.upper():
-        print(f"ERROR: Unsafe rollback detected: {pattern}")
+        print(f"Unsafe rollback detected: {pattern}")
         sys.exit(1)
 
 # ----------------------------------------
-# Convert to notebook cells
+# Convert to notebook format
 # ----------------------------------------
 
 commands = [
@@ -350,15 +386,19 @@ commands = [
 
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
 
-rollback_filename = os.path.join(
+# ----------------------------------------
+# Write rollback.sql
+# ----------------------------------------
+
+rollback_path = os.path.join(
     os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
     "rollback.sql"
 )
 
-with open(rollback_filename, "w") as f:
+with open(rollback_path, "w") as f:
     f.write(formatted_sql)
 
 cursor.close()
 conn.close()
 
-print("Rollback SQL generated:", rollback_filename)
+print(f"Rollback SQL generated successfully: {rollback_path}")
