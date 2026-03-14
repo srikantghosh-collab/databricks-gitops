@@ -97,10 +97,14 @@ stages:
               path: .
 
           - script: |
-              python -m pip install "openai>=1.30.0"
-              python scripts/ai_rollback_generator.py
+             python -m pip install "openai>=1.30.0"
+             python scripts/ai_rollback_generator.py
             displayName: "Generate Rollback SQL"
             env:
+             AZURE_OPENAI_KEY: $(AZURE_OPENAI_KEY)
+             AZURE_OPENAI_ENDPOINT: $(AZURE_OPENAI_ENDPOINT)
+             AZURE_DEPLOYMENT_NAME: $(AZURE_DEPLOYMENT_NAME)
+
              DATABRICKS_HOST: $(Databricks_Host)
              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
              DATABRICKS_CLIENT_ID: $(DATABRICKS_CLIENT_ID)
