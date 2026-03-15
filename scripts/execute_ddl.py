@@ -33,7 +33,6 @@ if not migrations:
     print("No migration scripts to execute — exiting")
     sys.exit(0)
 
-# enforce migration order
 migrations = sorted(migrations, key=lambda x: x["script_name"])
 
 commit_id = payload.get("commit_id") or subprocess.check_output(
@@ -89,7 +88,6 @@ def strip_comments(sql_text):
 
 
 def read_sql_file(path):
-
     with open(path) as f:
         sql_text = f.read()
 
@@ -146,6 +144,7 @@ UNSUPPORTED_KEYWORDS = [
     "ALTER DATABASE",
     "ENABLE ROW LEVEL SECURITY",
 ]
+
 
 def validate_sql_dialect(ddl_sql):
 
@@ -214,39 +213,59 @@ for migration in migrations:
 
         ddl_upper = ddl_sql.upper()
 
-    try:
+        try:
 
-        validate_sql_dialect(ddl_sql)
+            # Handle USE SCHEMA / USE CATALOG
+            if ddl_upper.startswith("USE SCHEMA") or ddl_upper.startswith("USE CATALOG"):
+                print(f"Switching context: {ddl_sql}", flush=True)
+                cursor.execute(ddl_sql)
+                continue
 
-        table_name = extract_table_name(ddl_sql)
+            validate_sql_dialect(ddl_sql)
 
-        if table_name and needs_column_mapping(ddl_upper):
-            ensure_column_mapping_enabled(cursor, table_name)
+            table_name = extract_table_name(ddl_sql)
 
-        print(f"Executing cell {i+1}", flush=True)
+            if table_name and needs_column_mapping(ddl_upper):
+                ensure_column_mapping_enabled(cursor, table_name)
 
-        cursor.execute(ddl_sql)
+            print(f"Executing cell {i+1}", flush=True)
 
-    except Exception as e:
+            cursor.execute(ddl_sql)
 
-        cursor.execute(f"""
-            MERGE INTO hive_metastore.default.ddl_execution_log t
-            USING (SELECT '{script_name}' AS script_name) s
-            ON t.script_name = s.script_name
-            WHEN MATCHED THEN
-                UPDATE SET
-                    status='FAILED',
-                    last_executed_cell={i},
-                    executed_at=current_timestamp()
-            WHEN NOT MATCHED THEN
-                INSERT (script_name, status, last_executed_cell, executed_at)
-                VALUES ('{script_name}','FAILED',{i},current_timestamp())
-        """)
+            cursor.execute(f"""
+                MERGE INTO hive_metastore.default.ddl_execution_log t
+                USING (SELECT '{script_name}' AS script_name) s
+                ON t.script_name = s.script_name
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        status='RUNNING',
+                        last_executed_cell={i+1},
+                        executed_at=current_timestamp()
+                WHEN NOT MATCHED THEN
+                    INSERT (script_name, status, last_executed_cell, executed_at)
+                    VALUES ('{script_name}','RUNNING',{i+1},current_timestamp())
+            """)
 
-        cursor.close()
-        conn.close()
+        except Exception as e:
 
-        raise e
+            cursor.execute(f"""
+                MERGE INTO hive_metastore.default.ddl_execution_log t
+                USING (SELECT '{script_name}' AS script_name) s
+                ON t.script_name = s.script_name
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        status='FAILED',
+                        last_executed_cell={i},
+                        executed_at=current_timestamp()
+                WHEN NOT MATCHED THEN
+                    INSERT (script_name, status, last_executed_cell, executed_at)
+                    VALUES ('{script_name}','FAILED',{i},current_timestamp())
+            """)
+
+            cursor.close()
+            conn.close()
+
+            raise e
 
     cursor.execute(f"""
         MERGE INTO hive_metastore.default.ddl_execution_log t
@@ -260,7 +279,7 @@ for migration in migrations:
         WHEN NOT MATCHED THEN
             INSERT (script_name, status, last_executed_cell, executed_at)
             VALUES ('{script_name}','SUCCESS',{len(statements)},current_timestamp())
-        """)
+    """)
 
 cursor.close()
 conn.close()

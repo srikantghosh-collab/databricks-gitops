@@ -1,7 +1,7 @@
 USE CATALOG hive_metastore;
 USE SCHEMA demo_ddl_db;
 
-CREATE TABLE IF NOT EXISTS employee_pro18 (
+CREATE TABLE IF NOT EXISTS employee_pro19 (
     emp_id INT,
     emp_name STRING,
     department STRING,
