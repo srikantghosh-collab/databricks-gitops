@@ -191,14 +191,12 @@ stages:
               python -u scripts/execute_ddl.py
             displayName: "Execute DDL"
             env:
-              DATABRICKS_HOST: $(Databricks_Host)
-              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-              DATABRICKS_CLIENT_ID: $(DATABRICKS_CLIENT_ID)
-              CLIENT_SECRET: $(CLIENT_SECRET)
-              TENANT_ID: $(TENANT_ID)
-              ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
-              IS_DROP: $(PIPELINE_IS_DROP)
-              PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT']]
+             DATABRICKS_HOST: $(Databricks_Host)
+             DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
+             DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
+             ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
+             IS_DROP: $(PIPELINE_IS_DROP)
+             PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT']]
 
   - stage: Reconcile
     displayName: "Schema Reconciliation"

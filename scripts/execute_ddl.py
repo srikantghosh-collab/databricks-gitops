@@ -51,9 +51,7 @@ print("Connecting to Databricks...", flush=True)
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    auth_type="oauth-m2m",
-    oauth_client_id=os.environ["DATABRICKS_CLIENT_ID"],
-    oauth_client_secret=os.environ["CLIENT_SECRET"],
+    access_token=os.environ["DATABRICKS_TOKEN"]
 )
 
 print("Connection object created", flush=True)
@@ -63,9 +61,6 @@ print("Cursor created", flush=True)
 
 cursor.execute("SELECT 1")
 print("Test query executed", flush=True)
-
-cursor.execute("USE CATALOG hive_metastore")
-print("Catalog selected", flush=True)
 
 # =================================================
 # Helpers
