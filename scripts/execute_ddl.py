@@ -214,49 +214,39 @@ for migration in migrations:
 
         ddl_upper = ddl_sql.upper()
 
-        try:
+    try:
 
-            validate_sql_dialect(ddl_sql)
+        validate_sql_dialect(ddl_sql)
 
-            table_name = extract_table_name(ddl_sql)
+        table_name = extract_table_name(ddl_sql)
 
-            if table_name and needs_column_mapping(ddl_upper):
-                ensure_column_mapping_enabled(cursor, table_name)
+        if table_name and needs_column_mapping(ddl_upper):
+            ensure_column_mapping_enabled(cursor, table_name)
 
-            print(f"Executing cell {i+1}", flush=True)
+        print(f"Executing cell {i+1}", flush=True)
 
-            cursor.execute(ddl_sql)
+        cursor.execute(ddl_sql)
 
-            cursor.execute(f"""
-                MERGE INTO hive_metastore.default.ddl_execution_log t
-                USING (SELECT '{script_name}' AS script_name) s
-                ON t.script_name = s.script_name
-                WHEN MATCHED THEN
-                    UPDATE SET
-                        status='RUNNING',
-                        last_executed_cell={i+1},
-                        executed_at=current_timestamp()
-                WHEN NOT MATCHED THEN
-                    INSERT VALUES
-                    ('{script_name}','RUNNING',{i+1},current_timestamp())
-            """)
+    except Exception as e:
 
-        except Exception as e:
+        cursor.execute(f"""
+            MERGE INTO hive_metastore.default.ddl_execution_log t
+            USING (SELECT '{script_name}' AS script_name) s
+            ON t.script_name = s.script_name
+            WHEN MATCHED THEN
+                UPDATE SET
+                    status='FAILED',
+                    last_executed_cell={i},
+                    executed_at=current_timestamp()
+            WHEN NOT MATCHED THEN
+                INSERT (script_name, status, last_executed_cell, executed_at)
+                VALUES ('{script_name}','FAILED',{i},current_timestamp())
+        """)
 
-            cursor.execute(f"""
-                MERGE INTO hive_metastore.default.ddl_execution_log t
-                USING (SELECT '{script_name}' AS script_name) s
-                ON t.script_name = s.script_name
-                WHEN MATCHED THEN
-                    UPDATE SET
-                        status='FAILED',
-                        last_executed_cell={i}
-            """)
+        cursor.close()
+        conn.close()
 
-            cursor.close()
-            conn.close()
-
-            raise e
+        raise e
 
     cursor.execute(f"""
         MERGE INTO hive_metastore.default.ddl_execution_log t
@@ -268,9 +258,9 @@ for migration in migrations:
                 last_executed_cell={len(statements)},
                 executed_at=current_timestamp()
         WHEN NOT MATCHED THEN
-            INSERT VALUES
-            ('{script_name}','SUCCESS',{len(statements)},current_timestamp())
-    """)
+            INSERT (script_name, status, last_executed_cell, executed_at)
+            VALUES ('{script_name}','SUCCESS',{len(statements)},current_timestamp())
+        """)
 
 cursor.close()
 conn.close()
