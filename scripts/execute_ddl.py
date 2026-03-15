@@ -120,16 +120,21 @@ def extract_table_name(ddl_sql):
 
 def find_table_schema(cursor, table_name):
 
-    cursor.execute(f"""
-        SELECT table_schema
-        FROM hive_metastore.information_schema.tables
-        WHERE table_name = '{table_name}'
-    """)
+    try:
+        cursor.execute(f"""
+            SELECT table_schema
+            FROM system.information_schema.tables
+            WHERE table_name = '{table_name}'
+            LIMIT 1
+        """)
 
-    row = cursor.fetchone()
+        row = cursor.fetchone()
 
-    if row:
-        return row[0]
+        if row:
+            return row[0]
+
+    except Exception as e:
+        print(f"Schema detection failed for {table_name}: {e}", flush=True)
 
     return None
 
