@@ -63,6 +63,22 @@ cursor.execute("SELECT 1")
 print("Test query executed", flush=True)
 
 # =================================================
+# Ensure migration tracking table exists
+# =================================================
+
+print("Ensuring ddl_execution_log table exists...", flush=True)
+
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS hive_metastore.default.ddl_execution_log (
+    script_name STRING,
+    status STRING,
+    last_executed_cell INT,
+    executed_at TIMESTAMP
+)
+USING DELTA
+""")
+
+# =================================================
 # Helpers
 # =================================================
 
