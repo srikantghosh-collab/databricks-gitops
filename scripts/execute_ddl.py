@@ -88,6 +88,7 @@ def strip_comments(sql_text):
 
 
 def read_sql_file(path):
+
     with open(path) as f:
         sql_text = f.read()
 
@@ -132,6 +133,35 @@ def get_execution_status(cursor, script_name):
         return row[0], row[1]
 
     return None, 0
+
+
+# =================================================
+# Delta Migration Rule
+# ALTER COLUMN TYPE rewrite
+# =================================================
+
+def rewrite_alter_column_type(ddl_sql):
+
+    pattern = r"ALTER\s+TABLE\s+([^\s]+)\s+ALTER\s+COLUMN\s+([^\s]+)\s+TYPE\s+([^\s;]+)"
+    match = re.search(pattern, ddl_sql, re.IGNORECASE)
+
+    if not match:
+        return None
+
+    table = match.group(1)
+    column = match.group(2)
+    new_type = match.group(3)
+
+    temp_col = f"{column}_new"
+
+    print(f"Applying Delta migration rule for column type change: {column}", flush=True)
+
+    return [
+        f"ALTER TABLE {table} ADD COLUMN {temp_col} {new_type}",
+        f"UPDATE {table} SET {temp_col} = CAST({column} AS {new_type})",
+        f"ALTER TABLE {table} DROP COLUMN {column}",
+        f"ALTER TABLE {table} RENAME COLUMN {temp_col} TO {column}"
+    ]
 
 
 UNSUPPORTED_KEYWORDS = [
@@ -186,7 +216,6 @@ def ensure_column_mapping_enabled(cursor, table_name):
         SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
     """)
 
-
 # =================================================
 # Execute Migrations
 # =================================================
@@ -215,7 +244,7 @@ for migration in migrations:
 
         try:
 
-            # Handle USE SCHEMA / USE CATALOG
+            # Handle schema/catalog switching
             if ddl_upper.startswith("USE SCHEMA") or ddl_upper.startswith("USE CATALOG"):
                 print(f"Switching context: {ddl_sql}", flush=True)
                 cursor.execute(ddl_sql)
@@ -228,9 +257,16 @@ for migration in migrations:
             if table_name and needs_column_mapping(ddl_upper):
                 ensure_column_mapping_enabled(cursor, table_name)
 
-            print(f"Executing cell {i+1}", flush=True)
+            # Apply migration rule
+            rewritten = rewrite_alter_column_type(ddl_sql)
 
-            cursor.execute(ddl_sql)
+            if rewritten:
+                for stmt in rewritten:
+                    print(f"Executing rewritten step: {stmt}", flush=True)
+                    cursor.execute(stmt)
+            else:
+                print(f"Executing cell {i+1}", flush=True)
+                cursor.execute(ddl_sql)
 
             cursor.execute(f"""
                 MERGE INTO hive_metastore.default.ddl_execution_log t
