@@ -158,6 +158,14 @@ stages:
         steps:
           - checkout: self
 
+          - script: |
+              echo "=== MEMORY BEFORE INSTALL ==="
+              free -h
+              echo "=== TOP MEMORY PROCESSES ==="
+              ps aux --sort=-%mem | head
+            displayName: "Debug Memory Before Install"
+        
+
           - task: DownloadPipelineArtifact@2
             inputs:
               artifact: 'ddlartifact'
@@ -172,7 +180,13 @@ stages:
               python -m pip install databricks-sql-connector 
             displayName: "Install Databricks + Azure SDK"
 
-
+          
+          - script: |
+             echo "=== MEMORY AFTER INSTALL ==="
+             free -h
+             ps aux --sort=-%mem | head
+            displayName: "Debug Memory After Install"
+            
           - script: |
               python scripts/execute_ddl.py
             displayName: "Execute DDL"
