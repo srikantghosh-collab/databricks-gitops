@@ -128,13 +128,6 @@ stages:
               TENANT_ID: $(TENANT_ID)
               COMMIT_ID: $(Build.SourceVersion)
 
-          - script: |
-             echo "Current Directory:"
-             pwd
-             echo "Files:"
-             ls -R
-            displayName: "Debug Files"
-
   - stage: Approval
     displayName: "Manual Approval for DROP"
     dependsOn: AI
@@ -176,7 +169,7 @@ stages:
               path: .
 
           - script: |
-              python -m pip install databricks-sql-connector azure-storage-blob
+              python -m pip install databricks-sql-connector 
             displayName: "Install Databricks + Azure SDK"
 
 
@@ -244,7 +237,7 @@ stages:
             fetchDepth: 0
 
           - script: |
-              python -m pip install azure-storage-blob databricks-sql-connector
+              python -m pip install databricks-sql-connector
             displayName: "Install dependencies"
 
           - script: |
