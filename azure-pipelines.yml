@@ -177,8 +177,8 @@ stages:
               path: .
 
           - script: |
-              python -m pip install databricks-sql-connector 
-            displayName: "Install Databricks + Azure SDK"
+              python -m pip install --upgrade databricks-sql-connector 
+            displayName: "Install Databricks Connector"
 
           
           - script: |
