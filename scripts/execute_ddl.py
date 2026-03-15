@@ -45,6 +45,8 @@ print(f"Commit ID: {commit_id}")
 # =================================================
 # Connect to Databricks
 # =================================================
+
+print("Connecting to Databricks...", flush=True)
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
@@ -58,7 +60,7 @@ cursor = conn.cursor()
 
 cursor.execute("USE CATALOG hive_metastore")
 
-print("Connected to Databricks")
+print("Connected to Databricks", flush=True)
 
 # =================================================
 # Helpers
@@ -179,7 +181,7 @@ for migration in migrations:
     script_name = migration["script_name"]
     script_path = migration["path"]
 
-    print(f"\nProcessing migration: {script_name}")
+    print(f"\nProcessing migration: {script_name}", flush=True)
 
     status, last_cell = get_execution_status(cursor, script_name)
 
@@ -205,7 +207,7 @@ for migration in migrations:
             if table_name and needs_column_mapping(ddl_upper):
                 ensure_column_mapping_enabled(cursor, table_name)
 
-            print(f"Executing cell {i+1}: {ddl_sql}")
+            print(f"Executing cell {i+1}", flush=True)
 
             cursor.execute(ddl_sql)
 

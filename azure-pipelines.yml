@@ -188,7 +188,7 @@ stages:
             displayName: "Debug Memory After Install"
             
           - script: |
-              python scripts/execute_ddl.py
+              python -u scripts/execute_ddl.py
             displayName: "Execute DDL"
             env:
               DATABRICKS_HOST: $(Databricks_Host)
