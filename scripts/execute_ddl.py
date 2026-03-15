@@ -273,17 +273,17 @@ for migration in migrations:
 
             table_name = extract_table_name(ddl_sql)
 
-            if table_name:
+            # Skip schema detection for CREATE TABLE
+            if table_name and not ddl_upper.startswith("CREATE TABLE"):
+                schema = find_table_schema(cursor, table_name)
 
-                 schema = find_table_schema(cursor, table_name)
+                if schema:
+                  print(f"Detected schema {schema} for table {table_name}", flush=True)
 
-                 if schema:
-                   print(f"Detected schema {schema} for table {table_name}", flush=True)
-
-                   ddl_sql = ddl_sql.replace(
-                       table_name,
-                       f"{schema}.{table_name}"
-                   )
+                  ddl_sql = ddl_sql.replace(
+                     table_name,
+                     f"{schema}.{table_name}"
+                  )
 
             if table_name and needs_column_mapping(ddl_upper):
                 ensure_column_mapping_enabled(cursor, table_name)
