@@ -54,6 +54,7 @@ conn = sql.connect(
     azure_client_id=os.environ["DATABRICKS_CLIENT_ID"],
     azure_client_secret=os.environ["CLIENT_SECRET"],
     azure_tenant_id=os.environ["TENANT_ID"],
+    _timeout=30
 )
 
 cursor = conn.cursor()
