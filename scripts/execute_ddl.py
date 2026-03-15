@@ -118,6 +118,20 @@ def extract_table_name(ddl_sql):
 
     return None
 
+def find_table_schema(cursor, table_name):
+
+    cursor.execute(f"""
+        SELECT table_schema
+        FROM hive_metastore.information_schema.tables
+        WHERE table_name = '{table_name}'
+    """)
+
+    row = cursor.fetchone()
+
+    if row:
+        return row[0]
+
+    return None
 
 def get_execution_status(cursor, script_name):
 
@@ -253,6 +267,18 @@ for migration in migrations:
             validate_sql_dialect(ddl_sql)
 
             table_name = extract_table_name(ddl_sql)
+
+            if table_name:
+
+                 schema = find_table_schema(cursor, table_name)
+
+                 if schema:
+                   print(f"Detected schema {schema} for table {table_name}", flush=True)
+
+                   ddl_sql = ddl_sql.replace(
+                       table_name,
+                       f"{schema}.{table_name}"
+                   )
 
             if table_name and needs_column_mapping(ddl_upper):
                 ensure_column_mapping_enabled(cursor, table_name)
