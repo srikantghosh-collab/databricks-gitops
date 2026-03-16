@@ -19,6 +19,8 @@ print(f"AUTO_FIX mode: {AUTO_FIX}", flush=True)
 # Connect to Databricks
 # ------------------------------------------------
 
+print("Connecting to Databricks...", flush=True)
+
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
@@ -28,7 +30,11 @@ conn = sql.connect(
     azure_tenant_id=os.environ["TENANT_ID"],
 )
 
+print("Connection established", flush=True)
+
 cursor = conn.cursor()
+
+print("Cursor created", flush=True)
 
 # ------------------------------------------------
 # Load desired schema (Git)
