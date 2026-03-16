@@ -1,1 +1,0 @@
-CREATE SCHEMA sigmoid_employee;

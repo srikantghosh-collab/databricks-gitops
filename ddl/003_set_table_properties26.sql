@@ -1,7 +1,7 @@
 USE CATALOG hive_metastore;
-USE SCHEMA demo_ddl_db;
+USE SCHEMA sigmoid_employee;
 
-ALTER TABLE employee_pro25 SET TBLPROPERTIES (
+ALTER TABLE employee_pro26 SET TBLPROPERTIES (
     'delta.logRetentionDuration' = 'interval 30 days',
     'delta.deletedFileRetentionDuration' = 'interval 30 days'
 ); 
