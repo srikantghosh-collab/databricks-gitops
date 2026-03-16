@@ -278,7 +278,22 @@ def detect_table_schema(table_name):
 
     return None
 
+# Fetch table metadata
 
+def fetch_table_metadata(table_name, schema_name):
+
+    try:
+        if not schema or not table_name:
+            return None
+        cursor.execute(f"SHOW CREATE TABLE {schema_name}.{table_name}")
+
+        result = cursor.fetchone()
+
+        if result:
+            return result[0]
+    except Exception as e:
+        print(f"Metadata fetch failed for {schema_name}.{table_name}: {e}")
+        return None
 # ----------------------------------------
 # Read migration SQL files
 # ----------------------------------------
@@ -343,11 +358,16 @@ for stmt in forward_statements:
         f"{schema}.{table}",
         stmt
       )
+    create_table_sql = None
+
+    if table and schema:
+        create_table_sql = fetch_table_metadata(table, schema)
 
     metadata_payload.append({
         "statement": stmt,
         "table": table,
-        "schema": schema
+        "schema": schema,
+        "create_table_sql": create_table_sql
     })
 
 forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
