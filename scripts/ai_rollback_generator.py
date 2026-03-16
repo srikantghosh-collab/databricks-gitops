@@ -283,17 +283,20 @@ def detect_table_schema(table_name):
 def fetch_table_metadata(table_name, schema_name):
 
     try:
-        if not schema or not table_name:
+        if not schema_name or not table_name:
             return None
+
         cursor.execute(f"SHOW CREATE TABLE {schema_name}.{table_name}")
 
         result = cursor.fetchone()
 
         if result:
             return result[0]
+
     except Exception as e:
         print(f"Metadata fetch failed for {schema_name}.{table_name}: {e}")
         return None
+
 # ----------------------------------------
 # Read migration SQL files
 # ----------------------------------------
@@ -352,12 +355,15 @@ for stmt in forward_statements:
     if table:
         schema = detect_table_schema(table)
 
-    if table and schema:
-      stmt = re.sub(
-        rf"\b{table}\b",
-        f"{schema}.{table}",
-        stmt
-      )
+    # SAFE schema injection 
+    if table and schema and f"{schema}.{table}" not in stmt:
+        stmt = re.sub(
+            rf"\b{table}\b",
+            f"{schema}.{table}",
+            stmt,
+            count=1
+        )
+
     create_table_sql = None
 
     if table and schema:
@@ -420,12 +426,13 @@ for item in metadata_payload:
     table = item["table"]
     schema = item["schema"]
 
-    if table and schema:
+    if table and schema and f"{schema}.{table}" not in rollback_sql:
 
         rollback_sql = re.sub(
             rf"\b{table}\b",
             f"{schema}.{table}",
-            rollback_sql
+            rollback_sql,
+            count=1
         )
 
 # ----------------------------------------
