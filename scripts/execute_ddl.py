@@ -121,20 +121,22 @@ def extract_table_name(ddl_sql):
 def find_table_schema(cursor, table_name):
 
     try:
-        cursor.execute(f"""
-            SELECT table_schema
-            FROM system.information_schema.tables
-            WHERE table_name = '{table_name}'
-            LIMIT 1
-        """)
+        cursor.execute("SHOW DATABASES")
+        schemas = cursor.fetchall()
 
-        row = cursor.fetchone()
+        for schema in schemas:
 
-        if row:
-            return row[0]
+            schema_name = schema[0]
+
+            cursor.execute(f"SHOW TABLES IN {schema_name}")
+            tables = cursor.fetchall()
+
+            for t in tables:
+                if t[1] == table_name:
+                    return schema_name
 
     except Exception as e:
-        print(f"Schema detection failed for {table_name}: {e}", flush=True)
+        print(f"Schema detection skipped for {table_name}: {e}", flush=True)
 
     return None
 
