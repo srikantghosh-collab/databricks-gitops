@@ -218,9 +218,7 @@ stages:
               AUTO_FIX: "false"
               DATABRICKS_HOST: $(Databricks_Host)
               DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-              DATABRICKS_CLIENT_ID: $(DATABRICKS_CLIENT_ID)
-              CLIENT_SECRET: $(CLIENT_SECRET)
-              TENANT_ID: $(TENANT_ID)
+              DATABRICKS_TOKEN: $(Databricks_Token)
 
   - stage: AutoRollback
     displayName: "Auto Rollback (Git Revert)"

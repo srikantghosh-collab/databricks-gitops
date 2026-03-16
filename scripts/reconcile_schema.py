@@ -24,16 +24,12 @@ print("Connecting to Databricks...", flush=True)
 conn = sql.connect(
     server_hostname=os.environ["DATABRICKS_HOST"],
     http_path=os.environ["DATABRICKS_HTTP_PATH"],
-    auth_type="azure-client-secret",
-    azure_client_id=os.environ["DATABRICKS_CLIENT_ID"],
-    azure_client_secret=os.environ["CLIENT_SECRET"],
-    azure_tenant_id=os.environ["TENANT_ID"],
+    access_token=os.environ["DATABRICKS_TOKEN"]
 )
 
 print("Connection established", flush=True)
 
 cursor = conn.cursor()
-
 print("Cursor created", flush=True)
 
 # ------------------------------------------------
