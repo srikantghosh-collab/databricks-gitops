@@ -47,15 +47,20 @@ print("Desired tables:", desired_tables, flush=True)
 # Detect live tables across ALL schemas
 # --------------------------------------
 
+print("Fetching schemas...", flush=True)
+
 cursor.execute("SHOW DATABASES")
 schemas = [row[0] for row in cursor.fetchall()]
+
+print(f"Found {len(schemas)} schemas", flush=True)
 
 live_tables = {}
 
 for schema_name in schemas:
 
-    try:
+    print(f"Scanning schema: {schema_name}", flush=True)
 
+    try:
         cursor.execute(f"SHOW TABLES IN {schema_name}")
         rows = cursor.fetchall()
 
