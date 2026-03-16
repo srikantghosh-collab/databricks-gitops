@@ -118,6 +118,7 @@ def extract_table_name(ddl_sql):
 
     return None
 
+
 def find_table_schema(cursor, table_name):
 
     try:
@@ -140,6 +141,7 @@ def find_table_schema(cursor, table_name):
 
     return None
 
+
 def get_execution_status(cursor, script_name):
 
     cursor.execute(f"""
@@ -158,7 +160,6 @@ def get_execution_status(cursor, script_name):
 
 # =================================================
 # Delta Migration Rule
-# ALTER COLUMN TYPE rewrite
 # =================================================
 
 def rewrite_alter_column_type(ddl_sql):
@@ -219,9 +220,15 @@ def needs_column_mapping(ddl_upper: str):
     return any(p in ddl_upper for p in patterns)
 
 
-def ensure_column_mapping_enabled(cursor, table_name):
+# =================================================
+# FIXED: schema-aware column mapping
+# =================================================
 
-    cursor.execute(f"SHOW TBLPROPERTIES {table_name}")
+def ensure_column_mapping_enabled(cursor, table_name, schema):
+
+    full_table = f"{schema}.{table_name}" if schema else table_name
+
+    cursor.execute(f"SHOW TBLPROPERTIES {full_table}")
 
     props = {row[0]: row[1] for row in cursor.fetchall()}
 
@@ -230,10 +237,10 @@ def ensure_column_mapping_enabled(cursor, table_name):
     if mode == "name":
         return
 
-    print(f"Enabling column mapping for {table_name}")
+    print(f"Enabling column mapping for {full_table}")
 
     cursor.execute(f"""
-        ALTER TABLE {table_name}
+        ALTER TABLE {full_table}
         SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
     """)
 
@@ -265,7 +272,6 @@ for migration in migrations:
 
         try:
 
-            # Handle schema/catalog switching
             if ddl_upper.startswith("USE SCHEMA") or ddl_upper.startswith("USE CATALOG"):
                 print(f"Switching context: {ddl_sql}", flush=True)
                 cursor.execute(ddl_sql)
@@ -275,22 +281,23 @@ for migration in migrations:
 
             table_name = extract_table_name(ddl_sql)
 
-            # Skip schema detection for CREATE TABLE
+            schema = None
+
             if table_name and not ddl_upper.startswith("CREATE TABLE"):
                 schema = find_table_schema(cursor, table_name)
 
                 if schema:
-                  print(f"Detected schema {schema} for table {table_name}", flush=True)
+                    print(f"Detected schema {schema} for table {table_name}", flush=True)
 
-                  ddl_sql = ddl_sql.replace(
-                     table_name,
-                     f"{schema}.{table_name}"
-                  )
+                    ddl_sql = ddl_sql.replace(
+                        table_name,
+                        f"{schema}.{table_name}",
+                        1
+                    )
 
             if table_name and needs_column_mapping(ddl_upper):
-                ensure_column_mapping_enabled(cursor, table_name)
+                ensure_column_mapping_enabled(cursor, table_name, schema)
 
-            # Apply migration rule
             rewritten = rewrite_alter_column_type(ddl_sql)
 
             if rewritten:
