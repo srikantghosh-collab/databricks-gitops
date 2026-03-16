@@ -1,22 +1,18 @@
 from databricks import sql
 import os
 import yaml
-import json
 
-print(" Starting schema reconciliation...")
+print("Starting schema reconciliation...", flush=True)
 
 # CONFIG
 
 CATALOG = "hive_metastore"
-SCHEMA = os.environ.get("DDL_SCHEMA", "default")
-
-# AUTO_FIX toggle (default = false for safety)
 AUTO_FIX = os.environ.get("AUTO_FIX", "false").lower() == "true"
 
 SCHEMA_FILE = "schemas/tables.yaml"
 
-print(f"AUTO_FIX mode: {AUTO_FIX}")
- 
+print(f"AUTO_FIX mode: {AUTO_FIX}", flush=True)
+
 # Connect to Databricks
 
 conn = sql.connect(
@@ -31,7 +27,6 @@ conn = sql.connect(
 cursor = conn.cursor()
 
 cursor.execute(f"USE CATALOG {CATALOG}")
-cursor.execute(f"USE SCHEMA {SCHEMA}")
 
 # Load desired schema (Git)
 
@@ -46,28 +41,48 @@ desired_tables = {
     for t in desired_config.get("tables", [])
 }
 
-    
-print("Desired tables:", desired_tables)
+print("Desired tables:", desired_tables, flush=True)
 
-# Get live tables (Databricks)
+# --------------------------------------
+# Detect live tables across ALL schemas
+# --------------------------------------
 
-cursor.execute("SHOW TABLES")
-rows = cursor.fetchall()
+cursor.execute("SHOW DATABASES")
+schemas = [row[0] for row in cursor.fetchall()]
 
-live_tables = {row[1] for row in rows}
+live_tables = {}
 
-print("Live tables:", live_tables)
+for schema_name in schemas:
 
+    try:
+
+        cursor.execute(f"SHOW TABLES IN {schema_name}")
+        rows = cursor.fetchall()
+
+        for row in rows:
+            table = row[1]
+            live_tables[table] = schema_name
+
+    except Exception as e:
+        print(f"Skipping schema {schema_name}: {e}", flush=True)
+
+print("Live tables with schema:", live_tables, flush=True)
+
+live_table_names = set(live_tables.keys())
+
+# --------------------------------------
 # Drift detection
+# --------------------------------------
 
-missing = desired_tables - live_tables
-extra = live_tables - desired_tables
+missing = desired_tables - live_table_names
+extra = live_table_names - desired_tables
 
-print("Missing tables:", missing)
-print("Extra tables:", extra)
+print("Missing tables:", missing, flush=True)
+print("Extra tables:", extra, flush=True)
 
-
+# --------------------------------------
 # Helper: Audit logging
+# --------------------------------------
 
 def log_audit(action, sql_stmt, status):
 
@@ -82,8 +97,10 @@ def log_audit(action, sql_stmt, status):
     """
 
     cursor.execute(audit_sql)
-    
+
+# --------------------------------------
 # Helper: Build CREATE TABLE SQL
+# --------------------------------------
 
 def build_create_sql(table_def):
 
@@ -94,9 +111,13 @@ def build_create_sql(table_def):
 
     columns_sql = ", ".join(cols)
 
-    return f"CREATE TABLE {table_def['name']} ({columns_sql}) USING DELTA"
+    schema = table_def.get("schema", "default")
 
+    return f"CREATE TABLE {schema}.{table_def['name']} ({columns_sql}) USING DELTA"
+
+# --------------------------------------
 # Auto-fix: Create missing tables
+# --------------------------------------
 
 table_map = {
     t["name"]: t
@@ -108,47 +129,50 @@ for table_name in missing:
     table_def = table_map[table_name]
     create_sql = build_create_sql(table_def)
 
-
     if AUTO_FIX:
         try:
-            print(f"Creating missing table: {table_name}")
+
+            print(f"Creating missing table: {create_sql}", flush=True)
+
             cursor.execute(create_sql)
+
             log_audit("AUTO_CREATE", create_sql, "SUCCESS")
 
         except Exception as e:
-            print(f"Failed to create {table_name}:", str(e))
+
+            print(f"Failed to create {table_name}: {str(e)}", flush=True)
+
             log_audit("AUTO_CREATE", create_sql, "FAILED")
 
     else:
-        print(f"⚠ Missing table detected (manual review): {table_name}")
 
-        
+        print(f"⚠ Missing table detected (manual review): {table_name}", flush=True)
 
-
-# Detect Extra Tables (Manual Review Only)
-
+# --------------------------------------
+# Detect Extra Tables
+# --------------------------------------
 
 PROTECTED_TABLES = {"ddl_audit_log"}
 
 for table_name in extra:
 
-    # Skip protected & backup tables
     if table_name in PROTECTED_TABLES:
-        print(f"Skipping protected table: {table_name}")
+        print(f"Skipping protected table: {table_name}", flush=True)
         continue
 
-    print(f"⚠ Extra table detected (manual review required): {table_name}")
+    schema = live_tables[table_name]
 
-    drop_sql = f"DROP TABLE IF EXISTS {table_name}"
+    print(f"⚠ Extra table detected: {schema}.{table_name}", flush=True)
 
-    # Log drift only (NO DELETE)
+    drop_sql = f"DROP TABLE IF EXISTS {schema}.{table_name}"
+
     log_audit("DRIFT_EXTRA_TABLE", drop_sql, "REVIEW_REQUIRED")
 
-
+# --------------------------------------
 # Cleanup
-
+# --------------------------------------
 
 cursor.close()
 conn.close()
 
-print(" Reconciliation complete")
+print("Reconciliation complete", flush=True)

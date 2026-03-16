@@ -212,7 +212,7 @@ stages:
 
           - script: |
               python -m pip install databricks-sql-connector pyyaml
-              python scripts/reconcile_schema.py
+              python -u scripts/reconcile_schema.py
             displayName: "Run Reconciliation"
             env:
               AUTO_FIX: "false"
