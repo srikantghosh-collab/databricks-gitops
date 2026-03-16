@@ -3,6 +3,7 @@ import os
 import sys
 import re
 from openai import AzureOpenAI
+from databricks import sql
 
 print("Starting AI rollback generation...")
 
@@ -27,6 +28,20 @@ if not migrations:
     print("No migration scripts found")
     open("rollback.sql", "w").close()
     sys.exit(0)
+
+# ----------------------------------------
+# Connect to Databricks
+# ----------------------------------------
+
+print("Connecting to Databricks for schema detection...")
+
+conn = sql.connect(
+    server_hostname=os.environ["DATABRICKS_HOST"],
+    http_path=os.environ["DATABRICKS_HTTP_PATH"],
+    access_token=os.environ["DATABRICKS_TOKEN"]
+)
+
+cursor = conn.cursor()
 
 # ----------------------------------------
 # Azure OpenAI Client
@@ -237,46 +252,29 @@ def extract_table_name(stmt):
 
 
 # ----------------------------------------
-# NEW: Detect schema across all schemas
+# Detect schema across schemas
 # ----------------------------------------
 
 def detect_table_schema(table_name):
 
-    import subprocess
-
     try:
 
-        result = subprocess.run(
-            ["databricks", "sql", "query", "--query", "SHOW DATABASES"],
-            capture_output=True,
-            text=True
-        )
-
-        schemas = [
-            line.strip()
-            for line in result.stdout.splitlines()
-            if line.strip()
-        ]
+        cursor.execute("SHOW DATABASES")
+        schemas = cursor.fetchall()
 
         for schema in schemas:
 
-            result = subprocess.run(
-                [
-                    "databricks",
-                    "sql",
-                    "query",
-                    "--query",
-                    f"SHOW TABLES IN {schema}"
-                ],
-                capture_output=True,
-                text=True
-            )
+            schema_name = schema[0]
 
-            if table_name in result.stdout:
-                return schema
+            cursor.execute(f"SHOW TABLES IN {schema_name}")
+            tables = cursor.fetchall()
+
+            for t in tables:
+                if t[1] == table_name:
+                    return schema_name
 
     except Exception as e:
-        print("Schema detection failed:", e)
+        print(f"Schema detection failed for {table_name}: {e}")
 
     return None
 
@@ -396,6 +394,7 @@ for item in metadata_payload:
     schema = item["schema"]
 
     if table and schema:
+
         rollback_sql = re.sub(
             rf"\b{table}\b",
             f"{schema}.{table}",
@@ -442,3 +441,6 @@ with open(rollback_path, "w") as f:
     f.write(formatted_sql)
 
 print(f"Rollback SQL generated successfully: {rollback_path}")
+
+cursor.close()
+conn.close()
