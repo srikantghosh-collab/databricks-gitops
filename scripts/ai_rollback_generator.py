@@ -337,13 +337,20 @@ for stmt in forward_statements:
     if table:
         schema = detect_table_schema(table)
 
+    if table and schema:
+      stmt = re.sub(
+        rf"\b{table}\b",
+        f"{schema}.{table}",
+        stmt
+      )
+
     metadata_payload.append({
         "statement": stmt,
         "table": table,
         "schema": schema
     })
 
-forward_sql_text = "\n".join(forward_statements)
+forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
 metadata_text = json.dumps(metadata_payload, indent=2)
 
 # ----------------------------------------
