@@ -237,6 +237,51 @@ def extract_table_name(stmt):
 
 
 # ----------------------------------------
+# NEW: Detect schema across all schemas
+# ----------------------------------------
+
+def detect_table_schema(table_name):
+
+    import subprocess
+
+    try:
+
+        result = subprocess.run(
+            ["databricks", "sql", "query", "--query", "SHOW DATABASES"],
+            capture_output=True,
+            text=True
+        )
+
+        schemas = [
+            line.strip()
+            for line in result.stdout.splitlines()
+            if line.strip()
+        ]
+
+        for schema in schemas:
+
+            result = subprocess.run(
+                [
+                    "databricks",
+                    "sql",
+                    "query",
+                    "--query",
+                    f"SHOW TABLES IN {schema}"
+                ],
+                capture_output=True,
+                text=True
+            )
+
+            if table_name in result.stdout:
+                return schema
+
+    except Exception as e:
+        print("Schema detection failed:", e)
+
+    return None
+
+
+# ----------------------------------------
 # Read migration SQL files
 # ----------------------------------------
 
@@ -280,7 +325,7 @@ if not forward_statements:
 print(f"Detected {len(forward_statements)} DDL statements")
 
 # ----------------------------------------
-# Build metadata payload (NO DB CALLS)
+# Build metadata payload
 # ----------------------------------------
 
 metadata_payload = []
@@ -289,10 +334,15 @@ for stmt in forward_statements:
 
     table = extract_table_name(stmt)
 
+    schema = None
+
+    if table:
+        schema = detect_table_schema(table)
+
     metadata_payload.append({
         "statement": stmt,
         "table": table,
-        "schema": None
+        "schema": schema
     })
 
 forward_sql_text = "\n".join(forward_statements)
@@ -335,6 +385,22 @@ except Exception as e:
 
     print("AI rollback generation failed:", str(e))
     rollback_sql = "-- ROLLBACK GENERATION FAILED"
+
+# ----------------------------------------
+# Inject schema into rollback SQL
+# ----------------------------------------
+
+for item in metadata_payload:
+
+    table = item["table"]
+    schema = item["schema"]
+
+    if table and schema:
+        rollback_sql = re.sub(
+            rf"\b{table}\b",
+            f"{schema}.{table}",
+            rollback_sql
+        )
 
 # ----------------------------------------
 # Safety check
