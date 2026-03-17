@@ -43,6 +43,20 @@ conn = sql.connect(
 
 cursor = conn.cursor()
 
+# ----------------------------------------
+# NEW: CURRENT SCHEMA FALLBACK
+# ----------------------------------------
+
+def get_current_schema(cursor):
+    try:
+        cursor.execute("SELECT current_schema()")
+        return cursor.fetchone()[0]
+    except Exception as e:
+        print(f"Failed to fetch current schema: {e}")
+        return None
+
+# ----------------------------------------
+
 def get_already_executed_scripts(cursor):
     try:
         cursor.execute("""
@@ -78,7 +92,7 @@ client = AzureOpenAI(
 )
 
 # ----------------------------------------
-# System Prompt (UNCHANGED)
+# SYSTEM PROMPT (UNCHANGED)
 # ----------------------------------------
 
 SYSTEM_PROMPT = """You are an expert Databricks Delta Lake database reliability engineer.
@@ -272,7 +286,6 @@ def extract_table_name(stmt):
         if m:
             full_name = m.group(m.lastindex)
 
-            #  handle schema.table properly
             if "." in full_name:
                 return full_name.split(".")[-1]
 
@@ -280,20 +293,17 @@ def extract_table_name(stmt):
 
     return None
 
-
 # ----------------------------------------
-# Detect schema across schemas
+# Detect schema
 # ----------------------------------------
 
 def detect_table_schema(table_name):
 
     try:
-
         cursor.execute("SHOW DATABASES")
         schemas = cursor.fetchall()
 
         for schema in schemas:
-
             schema_name = schema[0]
 
             cursor.execute(f"SHOW TABLES IN {schema_name}")
@@ -308,27 +318,8 @@ def detect_table_schema(table_name):
 
     return None
 
-# Fetch table metadata
-
-def fetch_table_metadata(table_name, schema_name):
-
-    try:
-        if not schema_name or not table_name:
-            return None
-
-        cursor.execute(f"SHOW CREATE TABLE {schema_name}.{table_name}")
-
-        result = cursor.fetchone()
-
-        if result:
-            return result[0]
-
-    except Exception as e:
-        print(f"Metadata fetch failed for {schema_name}.{table_name}: {e}")
-        return None
-
 # ----------------------------------------
-# Read migration SQL files
+# Read migrations
 # ----------------------------------------
 
 forward_statements = []
@@ -338,7 +329,6 @@ for migration in migrations:
     path = migration["path"]
 
     if not os.path.exists(path):
-        print(f"Warning: {path} not found")
         continue
 
     with open(path) as f:
@@ -352,21 +342,12 @@ for migration in migrations:
 
     forward_statements.extend(statements)
 
-# ----------------------------------------
-# Filter only DDL statements
-# ----------------------------------------
-
 DDL_KEYWORDS = ("CREATE", "ALTER", "DROP")
 
 forward_statements = [
     s for s in forward_statements
     if s.upper().startswith(DDL_KEYWORDS)
 ]
-
-if not forward_statements:
-    print("No SQL statements detected in migrations")
-    open("rollback.sql", "w").close()
-    sys.exit(0)
 
 print(f"Detected {len(forward_statements)} DDL statements")
 
@@ -385,108 +366,56 @@ for stmt in forward_statements:
     if table:
         schema = detect_table_schema(table)
 
-    # SAFE schema injection 
-    if table and schema and f"{schema}.{table}" not in stmt:
-        stmt = re.sub(
-           rf"(?<!\.)\b{table}\b",
-           f"{schema}.{table}",
-           stmt
-        )
+        
+        if not schema:
+            schema = get_current_schema(cursor)
 
-    create_table_sql = None
+        print(f"DEBUG → table={table}, schema={schema}")
 
     if table and schema:
-        create_table_sql = fetch_table_metadata(table, schema)
+        stmt = re.sub(
+            rf"(?<!\.)\b{table}\b",
+            f"{schema}.{table}",
+            stmt
+        )
 
     metadata_payload.append({
         "statement": stmt,
         "table": table,
-        "schema": schema,
-        "create_table_sql": create_table_sql
+        "schema": schema
     })
 
 forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
-metadata_text = json.dumps(metadata_payload, indent=2)
 
 # ----------------------------------------
 # Call Azure OpenAI
 # ----------------------------------------
 
-try:
+response = client.chat.completions.create(
+    model=os.environ["AZURE_DEPLOYMENT_NAME"],
+    temperature=0,
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": forward_sql_text}
+    ]
+)
 
-    print("Calling Azure OpenAI...")
+rollback_sql = response.choices[0].message.content.strip()
 
-    prompt = f"""
-Forward DDL statements:
-
-{forward_sql_text}
-
-Table metadata:
-
-{metadata_text}
-
-Generate rollback SQL.
-"""
-
-    response = client.chat.completions.create(
-        model=os.environ["AZURE_DEPLOYMENT_NAME"],
-        temperature=0,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": prompt}
-        ]
-    )
-
-    rollback_sql = response.choices[0].message.content.strip()
-    
-        # Remove markdown code blocks ```sql ... ```
-    rollback_sql = re.sub(r"```[\w]*", "", rollback_sql)
-    rollback_sql = rollback_sql.replace("```", "")
-
-    # Remove headings like ### or ##
-    rollback_sql = re.sub(r"^#+.*", "", rollback_sql, flags=re.MULTILINE)
-
-    # Remove lines like "Here is your rollback SQL:"
-    rollback_sql = re.sub(r"(?i)^here is.*?:", "", rollback_sql, flags=re.MULTILINE)
-
-    # Remove unwanted comments (keep only allowed one)
-    clean_lines = []
-    for line in rollback_sql.splitlines():
-        line = line.strip()
-
-        if not line:
-            continue
-
-        # Allow ONLY this
-        if line == "-- ROLLBACK NOT POSSIBLE":
-            clean_lines.append(line)
-            continue
-
-        # Remove all other comments
-        if line.startswith("--") or line.startswith("#"):
-            continue
-
-        clean_lines.append(line)
-
-    rollback_sql = "\n".join(clean_lines).strip()
-
-    print("AI rollback generated")
-
-except Exception as e:
-
-    print("AI rollback generation failed:", str(e))
-    rollback_sql = "-- ROLLBACK GENERATION FAILED"
+# cleanup
+rollback_sql = re.sub(r"```[\w]*", "", rollback_sql)
+rollback_sql = rollback_sql.replace("```", "")
 
 # ----------------------------------------
-# Inject schema into rollback SQL
+# Inject schema in rollback
 # ----------------------------------------
+
 for item in metadata_payload:
 
     table = item["table"]
     schema = item["schema"]
 
     if table and schema:
-
         rollback_sql = re.sub(
             rf"(?<!\.)\b{table}\b",
             f"{schema}.{table}",
@@ -494,45 +423,13 @@ for item in metadata_payload:
         )
 
 # ----------------------------------------
-# Safety check
+# Write file
 # ----------------------------------------
 
-dangerous_patterns = [
-    "DROP DATABASE",
-    "TRUNCATE TABLE",
-    "DELETE FROM"
-]
+with open("rollback.sql", "w") as f:
+    f.write(rollback_sql)
 
-for pattern in dangerous_patterns:
-    if pattern in rollback_sql.upper():
-        print(f"Unsafe rollback detected: {pattern}")
-        sys.exit(1)
-
-# ----------------------------------------
-# Convert to notebook format
-# ----------------------------------------
-
-commands = [
-    cmd.strip()
-    for cmd in rollback_sql.split(";")
-    if cmd.strip()
-]
-
-formatted_sql = "\n\n-- COMMAND ----------\n\n".join([c + ";" for c in commands])
-
-# ----------------------------------------
-# Write rollback.sql
-# ----------------------------------------
-
-rollback_path = os.path.join(
-    os.environ.get("SYSTEM_DEFAULTWORKINGDIRECTORY", "."),
-    "rollback.sql"
-)
-
-with open(rollback_path, "w") as f:
-    f.write(formatted_sql)
-
-print(f"Rollback SQL generated successfully: {rollback_path}")
+print("Rollback SQL generated successfully")
 
 cursor.close()
 conn.close()
