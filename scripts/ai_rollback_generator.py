@@ -160,6 +160,12 @@ DO NOT drop the table.
 Ignore the CREATE TABLE statement and generate rollback SQL
 for the remaining DDL statements in reverse order.
 
+CREATE TABLE IF NOT EXISTS:
+Always assume the table is newly created in this migration.
+Rollback MUST be:
+DROP TABLE table_name;
+Never mark this as ROLLBACK NOT POSSIBLE.
+
 --------------------------------------------------
 DDL → ROLLBACK RULES
 --------------------------------------------------
@@ -455,13 +461,32 @@ for item in metadata_payload:
         )
 
 # ----------------------------------------
-# Write file
+# Convert to notebook format (FIXED)
+# ----------------------------------------
+
+# Normalize
+rollback_sql = rollback_sql.replace("\r", "").strip()
+
+# Robust split (handles newline + missing semicolon)
+commands = re.split(r";\s*\n|;\s*$", rollback_sql)
+
+commands = [cmd.strip() for cmd in commands if cmd.strip()]
+
+
+if len(commands) == 1:
+    commands = re.split(r"\n(?=ALTER|DROP|CREATE)", rollback_sql, flags=re.IGNORECASE)
+    commands = [cmd.strip() for cmd in commands if cmd.strip()]
+
+# Final formatting for Databricks notebook
+formatted_sql = "\n\n-- COMMAND ----------\n\n".join(
+    [cmd.rstrip(";") + ";" for cmd in commands]
+)
+
+# ----------------------------------------
+# Write rollback.sql
 # ----------------------------------------
 
 with open("rollback.sql", "w") as f:
-    f.write(rollback_sql)
+    f.write(formatted_sql)
 
-print("Rollback SQL generated successfully")
-
-cursor.close()
-conn.close()
+print("Rollback SQL generated successfully ")
