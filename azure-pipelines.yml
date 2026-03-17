@@ -167,11 +167,6 @@ stages:
               artifact: 'ddlartifact'
               path: .
 
-          - task: DownloadPipelineArtifact@2
-            inputs:
-              artifact: 'rollback-sql'
-              path: .
-
           - script: |
               python -m pip install --upgrade databricks-sql-connector 
             displayName: "Install Databricks Connector"
