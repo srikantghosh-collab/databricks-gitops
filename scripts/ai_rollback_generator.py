@@ -43,6 +43,30 @@ conn = sql.connect(
 
 cursor = conn.cursor()
 
+def get_already_executed_scripts(cursor):
+    try:
+        cursor.execute("""
+            SELECT script_name
+            FROM hive_metastore.default.ddl_execution_log
+            WHERE status = 'SUCCESS'
+        """)
+        return {row[0] for row in cursor.fetchall()}
+    except Exception as e:
+        print(f"Failed to fetch execution log: {e}")
+        return set()
+
+executed_scripts = get_already_executed_scripts(cursor)
+
+migrations = [
+    m for m in migrations
+    if m["script_name"] not in executed_scripts
+]
+
+if not migrations:
+    print("No new migrations to rollback")
+    open("rollback.sql", "w").close()
+    sys.exit(0)
+
 # ----------------------------------------
 # Azure OpenAI Client
 # ----------------------------------------
@@ -409,6 +433,37 @@ Generate rollback SQL.
     )
 
     rollback_sql = response.choices[0].message.content.strip()
+    
+        # Remove markdown code blocks ```sql ... ```
+    rollback_sql = re.sub(r"```[\w]*", "", rollback_sql)
+    rollback_sql = rollback_sql.replace("```", "")
+
+    # Remove headings like ### or ##
+    rollback_sql = re.sub(r"^#+.*", "", rollback_sql, flags=re.MULTILINE)
+
+    # Remove lines like "Here is your rollback SQL:"
+    rollback_sql = re.sub(r"(?i)^here is.*?:", "", rollback_sql, flags=re.MULTILINE)
+
+    # Remove unwanted comments (keep only allowed one)
+    clean_lines = []
+    for line in rollback_sql.splitlines():
+        line = line.strip()
+
+        if not line:
+            continue
+
+        # Allow ONLY this
+        if line == "-- ROLLBACK NOT POSSIBLE":
+            clean_lines.append(line)
+            continue
+
+        # Remove all other comments
+        if line.startswith("--") or line.startswith("#"):
+            continue
+
+        clean_lines.append(line)
+
+    rollback_sql = "\n".join(clean_lines).strip()
 
     print("AI rollback generated")
 
