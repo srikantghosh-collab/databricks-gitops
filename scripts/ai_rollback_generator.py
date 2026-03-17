@@ -388,10 +388,9 @@ for stmt in forward_statements:
     # SAFE schema injection 
     if table and schema and f"{schema}.{table}" not in stmt:
         stmt = re.sub(
-            rf"\b{table}\b",
-            f"{schema}.{table}",
-            stmt,
-            count=1
+           rf"(?<!\.)\b{table}\b",
+           f"{schema}.{table}",
+           stmt
         )
 
     create_table_sql = None
