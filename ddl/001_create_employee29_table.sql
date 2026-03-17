@@ -1,7 +1,7 @@
 USE CATALOG hive_metastore;
 USE SCHEMA sigmoid_employee;
 
-CREATE TABLE IF NOT EXISTS employee_pro28 (
+CREATE TABLE IF NOT EXISTS employee_pro29 (
     emp_id INT,
     emp_name STRING,
     department STRING,
