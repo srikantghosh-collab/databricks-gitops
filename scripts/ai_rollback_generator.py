@@ -145,6 +145,14 @@ Use this metadata to reconstruct rollback SQL for operations such as:
 If metadata allows reconstruction, generate rollback SQL instead of
 marking the operation as irreversible.
 
+The input will be a JSON array where each item contains:
+- statement
+- table
+- schema
+- columns (list of column name and type)
+
+You MUST use this metadata to generate rollback SQL.
+
 --------------------------------------------------
 CREATE TABLE SPECIAL RULE
 --------------------------------------------------
