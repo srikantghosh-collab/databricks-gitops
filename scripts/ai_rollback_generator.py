@@ -475,19 +475,17 @@ except Exception as e:
 # ----------------------------------------
 # Inject schema into rollback SQL
 # ----------------------------------------
-
 for item in metadata_payload:
 
     table = item["table"]
     schema = item["schema"]
 
-    if table and schema and f"{schema}.{table}" not in rollback_sql:
+    if table and schema:
 
         rollback_sql = re.sub(
-            rf"\b{table}\b",
+            rf"(?<!\.)\b{table}\b",
             f"{schema}.{table}",
-            rollback_sql,
-            count=1
+            rollback_sql
         )
 
 # ----------------------------------------
