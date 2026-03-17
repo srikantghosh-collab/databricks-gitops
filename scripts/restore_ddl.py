@@ -31,7 +31,7 @@ if response.status_code != 200:
     exit(1)
 
 # ----------------------------------------
-# ✅ Decode base64 content
+#  Decode base64 content
 # ----------------------------------------
 
 data = response.json()
@@ -49,7 +49,7 @@ print("Rollback file downloaded and decoded successfully")
 # ----------------------------------------
 # Clean notebook format
 # ----------------------------------------
-
+sql_text = sql_text.replace("-- Databricks notebook source", "")
 sql_text = sql_text.replace("-- COMMAND ----------", "")
 
 # ----------------------------------------
