@@ -351,6 +351,36 @@ forward_statements = [
 
 print(f"Detected {len(forward_statements)} DDL statements")
 
+
+# ----------------------------------------
+# Detect schema from SQL (IMPORTANT FIX)
+# ----------------------------------------
+
+def extract_schema_from_sql(statements):
+    for stmt in statements:
+        match = re.search(r"USE\s+SCHEMA\s+([^\s;]+)", stmt, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return None
+
+def extract_catalog_from_sql(statements):
+    for stmt in statements:
+        match = re.search(r"USE\s+CATALOG\s+([^\s;]+)", stmt, re.IGNORECASE)
+        if match:
+            return match.group(1)
+    return None
+
+
+detected_schema = extract_schema_from_sql(forward_statements)
+detected_catalog = extract_catalog_from_sql(forward_statements)
+
+if detected_catalog:
+    print(f"Using catalog from SQL: {detected_catalog}")
+    cursor.execute(f"USE CATALOG {detected_catalog}")
+
+if detected_schema:
+    print(f"Using schema from SQL: {detected_schema}")
+    cursor.execute(f"USE SCHEMA {detected_schema}")
 # ----------------------------------------
 # Build metadata payload
 # ----------------------------------------
@@ -366,7 +396,9 @@ for stmt in forward_statements:
     if table:
         schema = detect_table_schema(table)
 
-        
+        if not schema:
+            schema = detected_schema
+
         if not schema:
             schema = get_current_schema(cursor)
 
