@@ -271,6 +271,10 @@ def extract_table_name(stmt):
         m = re.search(p, stmt, re.IGNORECASE)
         if m:
             return m.group(m.lastindex)
+            if "." in full_name:
+                return full_name.split(".")[-1]
+            
+            return full_name 
 
     return None
 
