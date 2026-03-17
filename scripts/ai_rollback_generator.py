@@ -342,7 +342,7 @@ for migration in migrations:
 
     forward_statements.extend(statements)
 
-DDL_KEYWORDS = ("CREATE", "ALTER", "DROP")
+DDL_KEYWORDS = ("CREATE", "ALTER", "DROP","USE")
 
 forward_statements = [
     s for s in forward_statements
