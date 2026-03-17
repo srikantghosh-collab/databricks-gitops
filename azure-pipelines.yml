@@ -238,6 +238,10 @@ stages:
             fetchDepth: 0
 
           - script: |
+              pip install databricks-cli requests
+            displayName: "Install Databricks CLI"
+
+          - script: |
               python -m pip install databricks-sql-connector
             displayName: "Install dependencies"
 

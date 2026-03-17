@@ -1,6 +1,7 @@
 import os
 import subprocess
 import requests
+import base64
 
 print("Starting rollback execution...")
 
@@ -42,6 +43,20 @@ try:
     if response.status_code != 200:
         print(f"Rollback file not found in workspace: {WORKSPACE_PATH}")
         exit(1)
+    response_json = response.json()
+
+    encoded_content = response_json.get("content")
+
+    if not encoded_content:
+        print("No content found in workspace file")
+        exit(1)
+
+    decoded_sql = base64.b64decode(encoded_content).decode("utf-8")
+
+    with open(LOCAL_FILE, "w") as f:
+      f.write(decoded_sql)
+
+    print("Rollback file downloaded and decoded successfully")
 
     with open(LOCAL_FILE, "wb") as f:
         f.write(response.content)
@@ -66,6 +81,8 @@ if not os.path.exists(LOCAL_FILE):
 
 with open(LOCAL_FILE) as f:
     sql_text = f.read()
+
+sql_text = sql_text.replace("-- COMMAND ----------", "")
 
 # =================================================
 # SPLIT STATEMENTS
