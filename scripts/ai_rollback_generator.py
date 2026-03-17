@@ -387,6 +387,18 @@ if detected_catalog:
 if detected_schema:
     print(f"Using schema from SQL: {detected_schema}")
     cursor.execute(f"USE SCHEMA {detected_schema}")
+
+    def get_table_columns(cursor, schema, table):
+        try:
+            cursor.execute(f"DESCRIBE {schema}.{table}")
+            cols = cursor.fetchall()
+            return [
+               {"name": c[0], "type": c[1]}
+               for c in cols if c[0] and not c[0].startswith("#")
+        ]
+        except Exception as e:
+             print(f"Failed to fetch columns for {schema}.{table}: {e}")
+             return []
 # ----------------------------------------
 # Build metadata payload
 # ----------------------------------------
@@ -417,14 +429,21 @@ for stmt in forward_statements:
             stmt
         )
 
-    metadata_payload.append({
-        "statement": stmt,
-        "table": table,
-        "schema": schema
-    })
+columns = []
+
+if table and schema:
+    columns = get_table_columns(cursor, schema, table)
+
+metadata_payload.append({
+    "statement": stmt,
+    "table": table,
+    "schema": schema,
+    "columns": columns
+})
+    
     
 metadata_payload = list(reversed(metadata_payload))
-forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
+forward_sql_text = json.dumps(metadata_payload, indent=2)
 
 # ----------------------------------------
 # Call Azure OpenAI
