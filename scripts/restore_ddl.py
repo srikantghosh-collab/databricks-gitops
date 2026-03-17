@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-ROLLBACK_FILE = "rollback.sql"
+ROLLBACK_FILE = os.path.join(os.environ.get("PIPELINE_WORKSPACE", "."), "rollback.sql")
 
 if not os.path.exists(ROLLBACK_FILE):
     print("rollback.sql not found — nothing to restore")

@@ -251,6 +251,12 @@ stages:
               python -m pip install databricks-sql-connector
             displayName: "Install dependencies"
 
+          - task: DownloadPipelineArtifact@2
+            displayName: "Download Rollback Artifact"
+            inputs:
+              artifact: rollback-sql
+              path: '$(Pipeline.Workspace)'
+
           - script: |
               python scripts/restore_ddl.py
             displayName: "Auto Rollback using rollback.sql"
@@ -261,3 +267,4 @@ stages:
              DATABRICKS_CLIENT_ID: $(DATABRICKS_CLIENT_ID)
              CLIENT_SECRET: $(CLIENT_SECRET)
              TENANT_ID: $(TENANT_ID)
+         
