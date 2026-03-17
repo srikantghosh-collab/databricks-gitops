@@ -111,11 +111,6 @@ stages:
              DATABRICKS_CLIENT_ID: $(DATABRICKS_CLIENT_ID)
              CLIENT_SECRET: $(CLIENT_SECRET)
              TENANT_ID: $(TENANT_ID)
-          - task: PublishPipelineArtifact@1
-            inputs:
-              targetPath: rollback.sql
-              artifact: rollback-sql
-            displayName: "Publish Rollback SQL"
 
           - script: |
              python scripts/upload_rollback_to_workspace.py
@@ -250,12 +245,6 @@ stages:
           - script: |
               python -m pip install databricks-sql-connector
             displayName: "Install dependencies"
-
-          - task: DownloadPipelineArtifact@2
-            displayName: "Download Rollback Artifact"
-            inputs:
-              artifact: rollback-sql
-              path: '$(Pipeline.Workspace)'
 
           - script: |
               python scripts/restore_ddl.py
