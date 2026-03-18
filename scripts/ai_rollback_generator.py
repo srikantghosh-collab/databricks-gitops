@@ -498,29 +498,25 @@ for stmt in forward_statements:
 rollback_statements = []
 
 
-for item in reversed(metadata_payload):
+forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
 
-    stmt = item["statement"]
+response = client.chat.completions.create(
+    model=os.environ["AZURE_DEPLOYMENT_NAME"],
+    temperature=0,
+    timeout=60,
+    messages=[
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": forward_sql_text}
+    ]
+)
 
-    print(f"Processing: {stmt}")
+rollback_sql = response.choices[0].message.content.strip()
 
-    response = client.chat.completions.create(
-        model=os.environ["AZURE_DEPLOYMENT_NAME"],
-        temperature=0,
-        timeout=60,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": stmt}
-        ]
-    )
+# cleanup
+result = re.sub(r"```[\w]*", "", rollback_sql)
+result = result.replace("```", "").strip()
 
-    result = response.choices[0].message.content.strip()
-
-    # cleanup
-    result = re.sub(r"```[\w]*", "", result)
-    result = result.replace("```", "").strip()
-
-    rollback_statements.append(result)
+rollback_statements.append(result)
 
 # final combine
 rollback_sql = "\n".join(rollback_statements)
