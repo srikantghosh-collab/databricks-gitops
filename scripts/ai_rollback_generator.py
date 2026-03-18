@@ -118,6 +118,9 @@ STRICT OUTPUT RULES
 9. Use the provided table metadata to reconstruct rollback SQL whenever possible.
 10. Only output:
 -- ROLLBACK NOT POSSIBLE
+11. For ALTER TABLE ADD COLUMN:
+ALWAYS generate DROP COLUMN rollback.
+DO NOT mark as ROLLBACK NOT POSSIBLE.
 if the rollback truly cannot be determined even using the provided metadata.
 
 If some statements cannot be reversed, still generate rollback SQL
@@ -145,13 +148,7 @@ Use this metadata to reconstruct rollback SQL for operations such as:
 If metadata allows reconstruction, generate rollback SQL instead of
 marking the operation as irreversible.
 
-The input will be a JSON array where each item contains:
-- statement
-- table
-- schema
-- columns (list of column name and type)
 
-You MUST use this metadata to generate rollback SQL.
 
 --------------------------------------------------
 CREATE TABLE SPECIAL RULE
@@ -396,17 +393,7 @@ if detected_schema:
     print(f"Using schema from SQL: {detected_schema}")
     cursor.execute(f"USE SCHEMA {detected_schema}")
 
-    def get_table_columns(cursor, schema, table):
-        try:
-            cursor.execute(f"DESCRIBE {schema}.{table}")
-            cols = cursor.fetchall()
-            return [
-               {"name": c[0], "type": c[1]}
-               for c in cols if c[0] and not c[0].startswith("#")
-        ]
-        except Exception as e:
-             print(f"Failed to fetch columns for {schema}.{table}: {e}")
-             return []
+
 # ----------------------------------------
 # Build metadata payload
 # ----------------------------------------
@@ -436,22 +423,16 @@ for stmt in forward_statements:
             f"{schema}.{table}",
             stmt
         )
-
-columns = []
-
-if table and schema:
-    columns = get_table_columns(cursor, schema, table)
-
+ 
 metadata_payload.append({
     "statement": stmt,
     "table": table,
-    "schema": schema,
-    "columns": columns
+    "schema": schema
 })
     
     
 metadata_payload = list(reversed(metadata_payload))
-forward_sql_text = json.dumps(metadata_payload, indent=2)
+forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
 
 # ----------------------------------------
 # Call Azure OpenAI
