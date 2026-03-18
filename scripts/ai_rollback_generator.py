@@ -145,6 +145,8 @@ STRICT OUTPUT RULES
 
      STRICTLY FOLLOW THIS IF SOME STATEMENTS SEEM INDEPENDENT.
 
+14. When generating rollback for ALTER statements, you MUST use metadata to restore previous state.
+
 --------------------------------------------------
 METADATA USAGE RULE
 --------------------------------------------------
