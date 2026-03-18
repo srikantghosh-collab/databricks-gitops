@@ -507,7 +507,7 @@ for item in reversed(metadata_payload):
     response = client.chat.completions.create(
         model=os.environ["AZURE_DEPLOYMENT_NAME"],
         temperature=0,
-        timeout = 60,
+        timeout=60,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": stmt}
