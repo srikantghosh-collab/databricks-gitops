@@ -495,27 +495,35 @@ for stmt in forward_statements:
           "schema": schema
         })
 
-metadata_payload = list(reversed(metadata_payload))
-forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
+rollback_statements = []
 
-# ----------------------------------------
-# Call Azure OpenAI
-# ----------------------------------------
 
-response = client.chat.completions.create(
-    model=os.environ["AZURE_DEPLOYMENT_NAME"],
-    temperature=0,
-    messages=[
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": forward_sql_text}
-    ]
-)
+for item in reversed(metadata_payload):
 
-rollback_sql = response.choices[0].message.content.strip()
+    stmt = item["statement"]
 
-# cleanup
-rollback_sql = re.sub(r"```[\w]*", "", rollback_sql)
-rollback_sql = rollback_sql.replace("```", "")
+    print(f"Processing: {stmt}")
+
+    response = client.chat.completions.create(
+        model=os.environ["AZURE_DEPLOYMENT_NAME"],
+        temperature=0,
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": stmt}
+        ]
+    )
+
+    result = response.choices[0].message.content.strip()
+
+    # cleanup
+    result = re.sub(r"```[\w]*", "", result)
+    result = result.replace("```", "").strip()
+
+    rollback_statements.append(result)
+
+# final combine
+rollback_sql = "\n".join(rollback_statements)
+
 
 # ----------------------------------------
 # Inject schema in rollback
