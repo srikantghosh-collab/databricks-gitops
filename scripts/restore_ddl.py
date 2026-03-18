@@ -1,6 +1,7 @@
 import os
 import requests
 import base64
+import re
 from databricks import sql
 
 print("Starting rollback execution...")
@@ -77,10 +78,143 @@ conn = sql.connect(
 cursor = conn.cursor()
 
 # ----------------------------------------
+# Helpers
+# ----------------------------------------
+
+def extract_table_name(ddl_sql):
+    patterns = [
+        r"CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([^\s(]+)",
+        r"CREATE\s+TABLE\s+([^\s(]+)",
+        r"ALTER\s+TABLE\s+([^\s;]+)",
+        r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
+        r"DROP\s+TABLE\s+([^\s;]+)"
+    ]
+
+    for p in patterns:
+        m = re.search(p, ddl_sql, re.IGNORECASE)
+        if m:
+            return m.group(1)
+
+    return None
+
+def split_schema_and_table(table_name):
+    if not table_name:
+        return None, None
+
+    parts = table_name.split(".")
+    if len(parts) >= 2:
+        return ".".join(parts[:-1]), parts[-1]
+
+    return None, table_name
+
+def find_table_schema(cursor, table_name):
+    _, base_table_name = split_schema_and_table(table_name)
+
+    try:
+        cursor.execute("SHOW DATABASES")
+        schemas = cursor.fetchall()
+
+        for schema in schemas:
+            schema_name = schema[0]
+
+            cursor.execute(f"SHOW TABLES IN {schema_name}")
+            tables = cursor.fetchall()
+
+            for t in tables:
+                if t[1] == base_table_name:
+                    return schema_name
+
+    except Exception as e:
+        print(f"Schema detection skipped for {table_name}: {e}", flush=True)
+
+    return None
+
+def rewrite_alter_column_type(ddl_sql):
+    pattern = r"ALTER\s+TABLE\s+([^\s]+)\s+ALTER\s+COLUMN\s+([^\s]+)\s+TYPE\s+([^\s;]+)"
+    match = re.search(pattern, ddl_sql, re.IGNORECASE)
+
+    if not match:
+        return None
+
+    table = match.group(1)
+    column = match.group(2)
+    new_type = match.group(3)
+    temp_col = f"{column}_new"
+
+    print(f"Applying Delta migration rule for rollback column type change: {column}", flush=True)
+
+    return [
+        f"ALTER TABLE {table} ADD COLUMN {temp_col} {new_type}",
+        f"UPDATE {table} SET {temp_col} = CAST({column} AS {new_type})",
+        f"ALTER TABLE {table} DROP COLUMN {column}",
+        f"ALTER TABLE {table} RENAME COLUMN {temp_col} TO {column}"
+    ]
+
+def needs_column_mapping(ddl_upper):
+    patterns = [
+        "RENAME COLUMN",
+        "CHANGE COLUMN",
+        "DROP COLUMN",
+        "REPLACE COLUMNS",
+        "ALTER COLUMN"
+    ]
+
+    return any(p in ddl_upper for p in patterns)
+
+def ensure_column_mapping_enabled(cursor, table_name, schema):
+    full_table = f"{schema}.{table_name}" if schema else table_name
+
+    cursor.execute(f"SHOW TBLPROPERTIES {full_table}")
+    props = {row[0]: row[1] for row in cursor.fetchall()}
+
+    mode = props.get("delta.columnMapping.mode")
+    if mode == "name":
+        return
+
+    print(f"Enabling column mapping for {full_table}", flush=True)
+    cursor.execute(f"""
+        ALTER TABLE {full_table}
+        SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
+    """)
+
+# ----------------------------------------
 # Execute statements
 # ----------------------------------------
 
 for stmt in statements:
+    ddl_upper = stmt.upper()
+
+    if ddl_upper.startswith("USE SCHEMA") or ddl_upper.startswith("USE CATALOG"):
+        print(f"Switching context: {stmt}", flush=True)
+        cursor.execute(stmt)
+        continue
+
+    table_name = extract_table_name(stmt)
+    schema = None
+
+    if table_name:
+        schema, base_table_name = split_schema_and_table(table_name)
+
+        if not schema:
+            schema = find_table_schema(cursor, table_name)
+
+        if schema and "." not in table_name:
+            stmt = stmt.replace(table_name, f"{schema}.{base_table_name}", 1)
+            table_name = f"{schema}.{base_table_name}"
+        else:
+            table_name = base_table_name
+
+        if needs_column_mapping(ddl_upper):
+            ensure_column_mapping_enabled(cursor, table_name, schema)
+
+    rewritten = rewrite_alter_column_type(stmt)
+
+    if rewritten:
+        for rewritten_stmt in rewritten:
+            print(f"Executing rewritten rollback step: {rewritten_stmt}", flush=True)
+            cursor.execute(rewritten_stmt)
+        continue
+
     print(f"Running: {stmt}")
     cursor.execute(stmt)
 
