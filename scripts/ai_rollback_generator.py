@@ -145,19 +145,19 @@ STRICT OUTPUT RULES
 
      STRICTLY FOLLOW THIS IF SOME STATEMENTS SEEM INDEPENDENT.
 
-14. CRITICAL EXECUTION ORDER RULE:
+14. TABLE LIFECYCLE ORDER RULE:
 
-Even though rollback must follow reverse order,
-DROP TABLE must ALWAYS be the LAST statement in the rollback sequence.
+Keep strict reverse order as the default.
 
-Reason:
-Dropping the table before reversing other operations will make
-subsequent rollback statements fail.
+Apply only these dependency-safe exceptions:
 
-Therefore:
-- Generate DROP TABLE only at the very end
-- NEVER place DROP TABLE at the beginning
-- Ensure all ALTER TABLE rollback statements execute before DROP TABLE
+- If a rollback statement is DROP TABLE generated from a forward CREATE TABLE,
+  place that DROP TABLE after every other rollback statement for the same table.
+- If a rollback statement is CREATE TABLE generated from a forward DROP TABLE,
+  place that CREATE TABLE before any rollback statement that references that same table.
+
+Do NOT move CREATE TABLE or DROP TABLE statements to the top just because they are table-level operations.
+Only adjust order when required so dependent ALTER TABLE rollback statements can execute safely.
 
 --------------------------------------------------
 METADATA USAGE RULE
@@ -382,6 +382,52 @@ def extract_table_name(stmt):
 
     return None
 
+def normalize_rollback_command_order(commands):
+    ordered = commands[:]
+
+    i = 0
+    while i < len(ordered):
+        cmd = ordered[i]
+        table = extract_table_name(cmd)
+
+        if table and re.match(r"^\s*CREATE\s+TABLE\b", cmd, re.IGNORECASE):
+            target_index = i
+
+            for j in range(i - 1, -1, -1):
+                prev_table = extract_table_name(ordered[j])
+                if prev_table == table:
+                    target_index = j
+
+            if target_index != i:
+                create_cmd = ordered.pop(i)
+                ordered.insert(target_index, create_cmd)
+                i = max(target_index, 0)
+                continue
+
+        i += 1
+
+    i = 0
+    while i < len(ordered):
+        cmd = ordered[i]
+        table = extract_table_name(cmd)
+
+        if table and re.match(r"^\s*DROP\s+TABLE\b", cmd, re.IGNORECASE):
+            target_index = i
+
+            for j in range(i + 1, len(ordered)):
+                next_table = extract_table_name(ordered[j])
+                if next_table == table:
+                    target_index = j
+
+            if target_index != i:
+                drop_cmd = ordered.pop(i)
+                ordered.insert(target_index, drop_cmd)
+                continue
+
+        i += 1
+
+    return ordered
+
 # ----------------------------------------
 # Detect schema
 # ----------------------------------------
@@ -588,6 +634,8 @@ commands = [cmd.strip() for cmd in commands if cmd.strip()]
 if len(commands) == 1:
     commands = re.split(r"\n(?=ALTER|DROP|CREATE)", rollback_sql, flags=re.IGNORECASE)
     commands = [cmd.strip() for cmd in commands if cmd.strip()]
+
+commands = normalize_rollback_command_order(commands)
 
 # Final formatting for Databricks notebook
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join(
