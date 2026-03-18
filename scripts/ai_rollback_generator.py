@@ -382,6 +382,119 @@ def extract_table_name(stmt):
 
     return None
 
+def parse_add_columns(stmt):
+    single_match = re.search(
+        r"ALTER\s+TABLE\s+([^\s]+)\s+ADD\s+COLUMN\s+([^\s,()]+)\s+([^\s;]+)",
+        stmt,
+        re.IGNORECASE
+    )
+    if single_match:
+        table_name = single_match.group(1)
+        column_name = single_match.group(2)
+        return table_name, [column_name]
+
+    multi_match = re.search(
+        r"ALTER\s+TABLE\s+([^\s]+)\s+ADD\s+COLUMNS\s*\((.*?)\)",
+        stmt,
+        re.IGNORECASE | re.DOTALL
+    )
+    if not multi_match:
+        return None, []
+
+    table_name = multi_match.group(1)
+    raw_columns = multi_match.group(2)
+    columns = []
+
+    for col_def in raw_columns.split(","):
+        parts = col_def.strip().split()
+        if parts:
+            columns.append(parts[0])
+
+    return table_name, columns
+
+def generate_deterministic_rollbacks(forward_statements):
+    deterministic = []
+
+    for stmt in reversed(forward_statements):
+        normalized = stmt.strip().rstrip(";")
+
+        create_match = re.match(
+            r"^\s*CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([^\s(]+)",
+            normalized,
+            re.IGNORECASE
+        )
+        if create_match:
+            table_name = create_match.group(1)
+            deterministic.append(
+                {
+                    "forward": normalized,
+                    "rollback": f"DROP TABLE {table_name};"
+                }
+            )
+            continue
+
+        if re.match(r"^\s*ALTER\s+TABLE\b.*\bADD\s+COLUMN\b", normalized, re.IGNORECASE):
+            table_name, columns = parse_add_columns(normalized)
+            for column_name in columns:
+                deterministic.append(
+                    {
+                        "forward": normalized,
+                        "rollback": f"ALTER TABLE {table_name} DROP COLUMN {column_name};"
+                    }
+                )
+            continue
+
+        if re.match(r"^\s*ALTER\s+TABLE\b.*\bADD\s+COLUMNS\b", normalized, re.IGNORECASE):
+            table_name, columns = parse_add_columns(normalized)
+            for column_name in columns:
+                deterministic.append(
+                    {
+                        "forward": normalized,
+                        "rollback": f"ALTER TABLE {table_name} DROP COLUMN {column_name};"
+                    }
+                )
+            continue
+
+        rename_match = re.match(
+            r"^\s*ALTER\s+TABLE\s+([^\s]+)\s+RENAME\s+COLUMN\s+([^\s]+)\s+TO\s+([^\s;]+)",
+            normalized,
+            re.IGNORECASE
+        )
+        if rename_match:
+            table_name = rename_match.group(1)
+            old_name = rename_match.group(2)
+            new_name = rename_match.group(3)
+            deterministic.append(
+                {
+                    "forward": normalized,
+                    "rollback": (
+                        f"ALTER TABLE {table_name} RENAME COLUMN {new_name} TO {old_name};"
+                    )
+                }
+            )
+            continue
+
+        tblproperties_match = re.match(
+            r"^\s*ALTER\s+TABLE\s+([^\s]+)\s+SET\s+TBLPROPERTIES\s*\((.*)\)\s*$",
+            normalized,
+            re.IGNORECASE
+        )
+        if tblproperties_match:
+            table_name = tblproperties_match.group(1)
+            properties = re.findall(r"'([^']+)'\s*=", tblproperties_match.group(2))
+            if properties:
+                quoted_properties = ", ".join(f"'{key}'" for key in properties)
+                deterministic.append(
+                    {
+                        "forward": normalized,
+                        "rollback": (
+                            f"ALTER TABLE {table_name} UNSET TBLPROPERTIES ({quoted_properties});"
+                        )
+                    }
+                )
+
+    return deterministic
+
 def normalize_rollback_command_order(commands):
     ordered = commands[:]
 
@@ -483,6 +596,8 @@ forward_statements = [
     s for s in forward_statements
     if s.upper().startswith(DDL_KEYWORDS)
 ]
+
+deterministic_rollbacks = generate_deterministic_rollbacks(forward_statements)
 
 print(f"Detected {len(forward_statements)} DDL statements")
 
@@ -634,6 +749,27 @@ commands = [cmd.strip() for cmd in commands if cmd.strip()]
 if len(commands) == 1:
     commands = re.split(r"\n(?=ALTER|DROP|CREATE)", rollback_sql, flags=re.IGNORECASE)
     commands = [cmd.strip() for cmd in commands if cmd.strip()]
+
+def normalize_sql_for_compare(sql):
+    return re.sub(r"\s+", " ", sql.strip().rstrip(";")).upper()
+
+search_start = 0
+
+for item in deterministic_rollbacks:
+    normalized_rollback = normalize_sql_for_compare(item["rollback"])
+    match_index = None
+
+    for idx in range(search_start, len(commands)):
+        if normalize_sql_for_compare(commands[idx]) == normalized_rollback:
+            match_index = idx
+            break
+
+    if match_index is not None:
+        search_start = match_index + 1
+        continue
+
+    commands.insert(search_start, item["rollback"].strip())
+    search_start += 1
 
 commands = normalize_rollback_command_order(commands)
 
