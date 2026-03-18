@@ -425,15 +425,12 @@ for stmt in forward_statements:
         )
 
  
-metadata_payload.append({
-    "statement": stmt,
-    "table": table,
-    "schema": schema
-})
-    
+        metadata_payload.append({
+          "statement": stmt,
+          "table": table,
+          "schema": schema
+        })
 
-
-    
 metadata_payload = list(reversed(metadata_payload))
 forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
 
