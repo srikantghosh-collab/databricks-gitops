@@ -145,6 +145,20 @@ STRICT OUTPUT RULES
 
      STRICTLY FOLLOW THIS IF SOME STATEMENTS SEEM INDEPENDENT.
 
+14. CRITICAL EXECUTION ORDER RULE:
+
+Even though rollback must follow reverse order,
+DROP TABLE must ALWAYS be the LAST statement in the rollback sequence.
+
+Reason:
+Dropping the table before reversing other operations will make
+subsequent rollback statements fail.
+
+Therefore:
+- Generate DROP TABLE only at the very end
+- NEVER place DROP TABLE at the beginning
+- Ensure all ALTER TABLE rollback statements execute before DROP TABLE
+
 --------------------------------------------------
 METADATA USAGE RULE
 --------------------------------------------------
