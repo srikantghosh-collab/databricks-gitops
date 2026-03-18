@@ -117,7 +117,8 @@ STRICT OUTPUT RULES
 7. Process the DDL statements as a SEQUENTIAL execution track.
    You must treat the input as an ordered execution log
    Rollback MUST strictly follow stack reversal:
-   - Last in, first out (LIFO)
+   - Last executed statement must be the first rollback statement.
+   - First executed statement must be the last rollback statement.
    Do NOT group, reorder, or optimize statements.
    DO NOT change order based on logic.
 
@@ -131,6 +132,18 @@ STRICT OUTPUT RULES
 11. If one statement cannot be reversed, still generate rollback SQL for all other statements.
 
 12. DO NOT insert '-- ROLLBACK NOT POSSIBLE' between valid rollback statements.
+
+13. ORDER ENFORCEMENT RULE:
+   
+    You must preserve exact positional mapping:
+
+     If input order is:
+     1,2,3,4,5,6
+
+     Output MUST be:
+     6,5,4,3,2,1
+
+     STRICTLY FOLLOW THIS IF SOME STATEMENTS SEEM INDEPENDENT.
 
 --------------------------------------------------
 METADATA USAGE RULE
