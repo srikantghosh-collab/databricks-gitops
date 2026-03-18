@@ -415,7 +415,8 @@ def parse_add_columns(stmt):
 def generate_deterministic_rollbacks(forward_statements):
     deterministic = []
 
-    for stmt in reversed(forward_statements):
+    for item in reversed(forward_statements):
+        stmt = item["statement"] if isinstance(item, dict) else item
         normalized = stmt.strip().rstrip(";")
 
         create_match = re.match(
@@ -541,6 +542,19 @@ def normalize_rollback_command_order(commands):
 
     return ordered
 
+def qualify_command_with_schema(command, table_schema_map):
+    qualified = command
+
+    for table, schema in table_schema_map.items():
+        if table and schema:
+            qualified = re.sub(
+                rf"(?<!\.)\b{re.escape(table)}\b",
+                f"{schema}.{table}",
+                qualified
+            )
+
+    return qualified
+
 # ----------------------------------------
 # Detect schema
 # ----------------------------------------
@@ -570,7 +584,7 @@ def detect_table_schema(table_name):
 # Read migrations
 # ----------------------------------------
 
-forward_statements = []
+forward_statement_entries = []
 
 for migration in migrations:
 
@@ -588,16 +602,34 @@ for migration in migrations:
         if s.strip()
     ]
 
-    forward_statements.extend(statements)
+    active_catalog = None
+    active_schema = None
+
+    for stmt in statements:
+        catalog_match = re.search(r"USE\s+CATALOG\s+([^\s;]+)", stmt, re.IGNORECASE)
+        if catalog_match:
+            active_catalog = catalog_match.group(1)
+
+        schema_match = re.search(r"USE\s+SCHEMA\s+([^\s;]+)", stmt, re.IGNORECASE)
+        if schema_match:
+            active_schema = schema_match.group(1)
+
+        forward_statement_entries.append({
+            "statement": stmt,
+            "catalog": active_catalog,
+            "schema": active_schema
+        })
 
 DDL_KEYWORDS = ("CREATE", "ALTER", "DROP","USE")
 
-forward_statements = [
-    s for s in forward_statements
-    if s.upper().startswith(DDL_KEYWORDS)
+forward_statement_entries = [
+    item for item in forward_statement_entries
+    if item["statement"].upper().startswith(DDL_KEYWORDS)
 ]
 
-deterministic_rollbacks = generate_deterministic_rollbacks(forward_statements)
+forward_statements = [item["statement"] for item in forward_statement_entries]
+
+deterministic_rollbacks = generate_deterministic_rollbacks(forward_statement_entries)
 
 print(f"Detected {len(forward_statements)} DDL statements")
 
@@ -639,14 +671,20 @@ if detected_schema:
 
 metadata_payload = []
 
-for stmt in forward_statements:
+for item in forward_statement_entries:
+
+    stmt = item["statement"]
 
     table = extract_table_name(stmt)
 
     schema = None
+    catalog = item.get("catalog")
 
     if table:
-        schema = detect_table_schema(table)
+        schema = item.get("schema")
+
+        if not schema:
+            schema = detect_table_schema(table)
 
         if not schema:
             schema = detected_schema
@@ -654,7 +692,7 @@ for stmt in forward_statements:
         if not schema:
             schema = get_current_schema(cursor)
 
-        print(f"DEBUG → table={table}, schema={schema}")
+        print(f"DEBUG → table={table}, schema={schema}, catalog={catalog}")
 
     if table and schema:
         stmt = re.sub(
@@ -667,7 +705,8 @@ for stmt in forward_statements:
         metadata_payload.append({
           "statement": stmt,
           "table": table,
-          "schema": schema
+          "schema": schema,
+          "catalog": catalog
         })
 
 rollback_statements = []
@@ -733,6 +772,13 @@ for item in metadata_payload:
             rollback_sql
         )
 
+table_schema_map = {}
+for item in metadata_payload:
+    table = item["table"]
+    schema = item["schema"]
+    if table and schema and table not in table_schema_map:
+        table_schema_map[table] = schema
+
 # ----------------------------------------
 # Convert to notebook format (FIXED)
 # ----------------------------------------
@@ -756,22 +802,35 @@ def normalize_sql_for_compare(sql):
 search_start = 0
 
 for item in deterministic_rollbacks:
-    normalized_rollback = normalize_sql_for_compare(item["rollback"])
+    qualified_rollback = qualify_command_with_schema(item["rollback"], table_schema_map)
+    normalized_rollback = normalize_sql_for_compare(qualified_rollback)
     match_index = None
 
-    for idx in range(search_start, len(commands)):
+    for idx in range(len(commands)):
         if normalize_sql_for_compare(commands[idx]) == normalized_rollback:
             match_index = idx
             break
 
     if match_index is not None:
-        search_start = match_index + 1
         continue
 
-    commands.insert(search_start, item["rollback"].strip())
+    commands.insert(search_start, qualified_rollback.strip())
     search_start += 1
 
+commands = [qualify_command_with_schema(cmd, table_schema_map) for cmd in commands]
 commands = normalize_rollback_command_order(commands)
+
+deduped_commands = []
+seen_commands = set()
+
+for cmd in commands:
+    normalized_cmd = normalize_sql_for_compare(cmd)
+    if normalized_cmd in seen_commands:
+        continue
+    seen_commands.add(normalized_cmd)
+    deduped_commands.append(cmd)
+
+commands = deduped_commands
 
 # Final formatting for Databricks notebook
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join(

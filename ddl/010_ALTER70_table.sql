@@ -1,5 +1,5 @@
 USE CATALOG hive_metastore;
-USE SCHEMA sigmoid_employee;
+USE SCHEMA demo_ddl_db;
 
 ALTER TABLE employee_pro69 ADD COLUMN email STRING;
 
