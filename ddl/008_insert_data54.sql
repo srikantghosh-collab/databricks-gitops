@@ -1,7 +1,7 @@
 USE CATALOG hive_metastore;
 USE SCHEMA demo_ddl_db;
 
-INSERT INTO employee_pro53 VALUES
+INSERT INTO employee_pro54 VALUES
 (1, 'John', 'IT', 60000, current_timestamp()),
 (2, 'Sara', 'HR', 50000, current_timestamp()),
 (3, 'Mike', 'Finance', 70000, current_timestamp()),

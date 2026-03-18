@@ -114,8 +114,12 @@ STRICT OUTPUT RULES
 5. Statements must be executable in Databricks SQL.
 6. Never hardcode table names. Use the names from the input DDL.
 
-7. Rollback statements MUST appear in STRICT REVERSE ORDER of execution.
-   The LAST forward DDL statement MUST be the FIRST rollback statement.
+7. Process the DDL statements as a SEQUENTIAL execution track.
+   You must treat the input as an ordered execution log
+   Rollback MUST strictly follow stack reversal:
+   - Last in, first out (LIFO)
+   Do NOT group, reorder, or optimize statements.
+   DO NOT change order based on logic.
 
 8. DO NOT reorder statements based on logic or grouping.
    Maintain exact 1-to-1 reverse mapping for each statement.
