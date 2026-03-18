@@ -145,6 +145,11 @@ STRICT OUTPUT RULES
 
      STRICTLY FOLLOW THIS IF SOME STATEMENTS SEEM INDEPENDENT.
 
+14. When generating rollback for ALTER COLUMN TYPE:
+    Use the column type for TABLE METADATA.
+    Never use placeholders like 'previous_type'.
+
+
 --------------------------------------------------
 METADATA USAGE RULE
 --------------------------------------------------
@@ -393,6 +398,31 @@ def detect_table_schema(table_name):
 
     return None
 
+# Fetch column metadata (NEW)
+# ----------------------------------------
+
+def get_table_columns(cursor, schema, table):
+
+    columns = {}
+
+    try:
+        cursor.execute(f"DESCRIBE TABLE {schema}.{table}")
+        rows = cursor.fetchall()
+
+        for r in rows:
+            col_name = r[0]
+            col_type = r[1]
+
+            # skip metadata rows
+            if col_name and not col_name.startswith("#"):
+                columns[col_name] = col_type
+
+    except Exception as e:
+        print(f"Failed to fetch columns for {schema}.{table}: {e}")
+
+    return columns
+
+
 # ----------------------------------------
 # Read migrations
 # ----------------------------------------
@@ -488,12 +518,14 @@ for stmt in forward_statements:
             stmt
         )
 
- 
-        metadata_payload.append({
-          "statement": stmt,
-          "table": table,
-          "schema": schema
-        })
+columns = get_table_columns(cursor, schema, table)
+
+metadata_payload.append({
+ "statement": stmt,
+ "table": table,
+ "schema": schema,
+ "columns": columns
+})
 
 rollback_statements = []
 
@@ -504,12 +536,21 @@ for item in reversed(metadata_payload):
 
     print(f"Processing: {stmt}")
 
+    user_input = f"""
+DDL:
+{stmt}
+
+TABLE METADATA (before change):
+{json.dumps(item.get("columns", {}), indent=2)}
+"""
+
+
     response = client.chat.completions.create(
         model=os.environ["AZURE_DEPLOYMENT_NAME"],
         temperature=0,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": stmt}
+            {"role": "user", "content": user_input}
         ]
     )
 
