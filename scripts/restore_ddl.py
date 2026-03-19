@@ -161,17 +161,32 @@ def ensure_column_mapping_enabled(cursor, table_name, schema):
     schema = strip_hive_metastore_prefix(schema)
     full_table = f"{schema}.{table_name}" if schema else table_name
 
-    cursor.execute(f"SHOW TBLPROPERTIES {full_table}")
-    props = {row[0]: row[1] for row in cursor.fetchall()}
+    try:
+        cursor.execute(f"SHOW TBLPROPERTIES {full_table}")
+        props = {row[0]: row[1] for row in cursor.fetchall()}
+    except Exception as e:
+        print(
+            f"Column mapping check skipped for {full_table}: {e}",
+            flush=True
+        )
+        return False
 
     if props.get("delta.columnMapping.mode") == "name":
-        return
+        return True
 
-    print(f"Enabling column mapping for {full_table}", flush=True)
-    cursor.execute(f"""
-        ALTER TABLE {full_table}
-        SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
-    """)
+    try:
+        print(f"Enabling column mapping for {full_table}", flush=True)
+        cursor.execute(f"""
+            ALTER TABLE {full_table}
+            SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
+        """)
+        return True
+    except Exception as e:
+        print(
+            f"Column mapping enable skipped for {full_table}: {e}",
+            flush=True
+        )
+        return False
 
 def is_alter_column_type_statement(ddl_sql):
     normalized_sql = re.sub(r"\s+", " ", ddl_sql.strip()).upper()
