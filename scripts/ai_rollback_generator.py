@@ -555,33 +555,6 @@ def qualify_command_with_schema(command, table_schema_map):
 
     return qualified
 
-def expand_unsafe_type_change_rollbacks(commands):
-    expanded = []
-
-    for cmd in commands:
-        match = re.match(
-            r"^\s*ALTER\s+TABLE\s+([^\s]+)\s+ALTER\s+COLUMN\s+([^\s]+)\s+TYPE\s+([^\s;]+)\s*$",
-            cmd.strip().rstrip(";"),
-            re.IGNORECASE
-        )
-
-        if not match:
-            expanded.append(cmd)
-            continue
-
-        table_name = match.group(1)
-        column_name = match.group(2)
-        target_type = match.group(3)
-        temp_column = f"{column_name}_rollback_tmp"
-
-        expanded.extend([
-            f"ALTER TABLE {table_name} ADD COLUMN {temp_column} {target_type};",
-            f"UPDATE {table_name} SET {temp_column} = CAST({column_name} AS {target_type});",
-            f"ALTER TABLE {table_name} DROP COLUMN {column_name};",
-            f"ALTER TABLE {table_name} RENAME COLUMN {temp_column} TO {column_name};"
-        ])
-
-    return expanded
 
 # ----------------------------------------
 # Detect schema
