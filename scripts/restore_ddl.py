@@ -221,7 +221,7 @@ for migration in migrations:
             else:
                 cursor.execute(stmt)
 
-            # ✅ LOG PER ORIGINAL SCRIPT
+            #  LOG PER ORIGINAL SCRIPT
             cursor.execute(f"""
                 MERGE INTO hive_metastore.default.ddl_execution_log t
                 USING (SELECT '{script_name}' AS script_name) s
