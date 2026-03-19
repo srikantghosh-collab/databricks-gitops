@@ -15,7 +15,7 @@ REVERT_COMMIT = os.environ["REVERT_COMMIT"]
 WORKSPACE_PATH = f"/rollback_scripts/rollback_{REVERT_COMMIT}.sql"
 
 # ----------------------------------------
-#  NEW: Load ddl_output.json for mapping
+# ✅ NEW: Load ddl_output.json for mapping
 # ----------------------------------------
 
 with open("ddl_output.json") as f:
