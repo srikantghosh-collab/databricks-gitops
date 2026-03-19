@@ -265,10 +265,14 @@ for migration in migrations:
 
     for i, ddl_sql in enumerate(statements):
 
-        if i < last_cell:
-            continue
-
         ddl_upper = ddl_sql.upper()
+
+        if i < last_cell:
+            # Reapply session context when resuming a partially executed script.
+            if ddl_upper.startswith("USE SCHEMA") or ddl_upper.startswith("USE CATALOG"):
+                print(f"Restoring context: {ddl_sql}", flush=True)
+                cursor.execute(ddl_sql)
+            continue
 
         try:
 
