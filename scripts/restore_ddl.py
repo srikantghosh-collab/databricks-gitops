@@ -97,7 +97,15 @@ def extract_table_name(ddl_sql):
 
     return None
 
+def strip_hive_metastore_prefix(value):
+    if not value:
+        return value
+
+    return re.sub(r"(?i)\bhive_metastore\.", "", value)
+
 def split_schema_and_table(table_name):
+    table_name = strip_hive_metastore_prefix(table_name)
+
     if not table_name:
         return None, None
 
@@ -106,6 +114,15 @@ def split_schema_and_table(table_name):
         return ".".join(parts[:-1]), parts[-1]
 
     return None, table_name
+
+def sanitize_statement_for_non_uc(stmt):
+    sanitized = re.sub(
+        r"(?i)\bhive_metastore\.([A-Za-z_][\w]*)\.([A-Za-z_][\w]*)",
+        r"\1.\2",
+        stmt
+    )
+    sanitized = re.sub(r"(?i)\bhive_metastore\.", "", sanitized)
+    return sanitized
 
 def find_table_schema(cursor, table_name):
     _, base_table_name = split_schema_and_table(table_name)
@@ -140,6 +157,8 @@ def needs_column_mapping(ddl_upper):
     return any(p in ddl_upper for p in patterns)
 
 def ensure_column_mapping_enabled(cursor, table_name, schema):
+    table_name = strip_hive_metastore_prefix(table_name)
+    schema = strip_hive_metastore_prefix(schema)
     full_table = f"{schema}.{table_name}" if schema else table_name
 
     cursor.execute(f"SHOW TBLPROPERTIES {full_table}")
@@ -193,6 +212,7 @@ def rewrite_alter_column_type(ddl_sql):
 # ----------------------------------------
 
 for stmt in statements:
+    stmt = sanitize_statement_for_non_uc(stmt)
     ddl_upper = stmt.upper()
 
     if ddl_upper.startswith("USE CATALOG"):
