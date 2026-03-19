@@ -2,6 +2,7 @@ import os
 import requests
 import base64
 import re
+import json
 from databricks import sql
 
 print("Starting rollback execution...")
@@ -12,6 +13,16 @@ DATABRICKS_HTTP_PATH = os.environ["DATABRICKS_HTTP_PATH"]
 REVERT_COMMIT = os.environ["REVERT_COMMIT"]
 
 WORKSPACE_PATH = f"/rollback_scripts/rollback_{REVERT_COMMIT}.sql"
+
+# ----------------------------------------
+# ✅ NEW: Load ddl_output.json for mapping
+# ----------------------------------------
+
+with open("ddl_output.json") as f:
+    payload = json.load(f)
+
+migrations = payload.get("migrations", [])
+migrations = list(reversed(migrations))   # rollback order
 
 # ----------------------------------------
 # Fetch rollback SQL from workspace
@@ -30,10 +41,6 @@ response = requests.get(
 if response.status_code != 200:
     print("Rollback file not found")
     exit(1)
-
-# ----------------------------------------
-# Decode base64 content
-# ----------------------------------------
 
 data = response.json()
 encoded = data.get("content")
@@ -54,18 +61,6 @@ sql_text = sql_text.replace("-- Databricks notebook source", "")
 sql_text = sql_text.replace("-- COMMAND ----------", "")
 
 # ----------------------------------------
-# Split statements
-# ----------------------------------------
-
-statements = [
-    s.strip()
-    for s in sql_text.split(";")
-    if s.strip()
-]
-
-print(f"Executing {len(statements)} rollback statements")
-
-# ----------------------------------------
 # Connect to Databricks
 # ----------------------------------------
 
@@ -76,12 +71,6 @@ conn = sql.connect(
 )
 
 cursor = conn.cursor()
-
-# ----------------------------------------
-# ✅ NEW: rollback script name
-# ----------------------------------------
-
-script_name = f"rollback_{REVERT_COMMIT}.sql"
 
 # ----------------------------------------
 # Helpers (UNCHANGED)
@@ -95,12 +84,10 @@ def extract_table_name(ddl_sql):
         r"DROP\s+TABLE\s+IF\s+EXISTS\s+([^\s;]+)",
         r"DROP\s+TABLE\s+([^\s;]+)"
     ]
-
     for p in patterns:
         m = re.search(p, ddl_sql, re.IGNORECASE)
         if m:
             return m.group(1)
-
     return None
 
 def strip_hive_metastore_prefix(value):
@@ -110,14 +97,11 @@ def strip_hive_metastore_prefix(value):
 
 def split_schema_and_table(table_name):
     table_name = strip_hive_metastore_prefix(table_name)
-
     if not table_name:
         return None, None
-
     parts = table_name.split(".")
     if len(parts) >= 2:
         return ".".join(parts[:-1]), parts[-1]
-
     return None, table_name
 
 def sanitize_statement_for_non_uc(stmt):
@@ -131,89 +115,56 @@ def sanitize_statement_for_non_uc(stmt):
 
 def find_table_schema(cursor, table_name):
     _, base_table_name = split_schema_and_table(table_name)
-
     try:
         cursor.execute("SHOW DATABASES")
         schemas = cursor.fetchall()
-
         for schema in schemas:
             schema_name = schema[0]
             cursor.execute(f"SHOW TABLES IN {schema_name}")
             tables = cursor.fetchall()
-
             for t in tables:
                 if t[1] == base_table_name:
                     return schema_name
-
     except Exception as e:
         print(f"Schema detection skipped for {table_name}: {e}", flush=True)
-
     return None
 
 def needs_column_mapping(ddl_upper):
-    patterns = [
-        "RENAME COLUMN",
-        "CHANGE COLUMN",
-        "DROP COLUMN",
-        "REPLACE COLUMNS",
-        "ALTER COLUMN"
-    ]
-
+    patterns = ["RENAME COLUMN", "CHANGE COLUMN", "DROP COLUMN", "REPLACE COLUMNS", "ALTER COLUMN"]
     return any(p in ddl_upper for p in patterns)
 
 def ensure_column_mapping_enabled(cursor, table_name, schema):
     table_name = strip_hive_metastore_prefix(table_name)
     schema = strip_hive_metastore_prefix(schema)
     full_table = f"{schema}.{table_name}" if schema else table_name
-
     try:
         cursor.execute(f"SHOW TBLPROPERTIES {full_table}")
         props = {row[0]: row[1] for row in cursor.fetchall()}
-    except Exception as e:
-        print(f"Column mapping check skipped for {full_table}", flush=True)
+    except:
         return False
-
     if props.get("delta.columnMapping.mode") == "name":
         return True
-
     try:
-        print(f"Enabling column mapping for {full_table}", flush=True)
         cursor.execute(f"""
             ALTER TABLE {full_table}
             SET TBLPROPERTIES ('delta.columnMapping.mode'='name')
         """)
         return True
-    except Exception as e:
-        print(f"Column mapping enable skipped for {full_table}", flush=True)
+    except:
         return False
 
 def is_alter_column_type_statement(ddl_sql):
     normalized_sql = re.sub(r"\s+", " ", ddl_sql.strip()).upper()
-    return (
-        normalized_sql.startswith("ALTER TABLE ")
-        and " ALTER COLUMN " in normalized_sql
-        and " TYPE " in normalized_sql
-    ) or (
-        normalized_sql.startswith("ALTER TABLE ")
-        and " CHANGE COLUMN " in normalized_sql
-        and " TYPE " in normalized_sql
-    )
+    return "ALTER COLUMN" in normalized_sql and "TYPE" in normalized_sql
 
 def rewrite_alter_column_type(ddl_sql):
     normalized_sql = re.sub(r"\s+", " ", ddl_sql.strip())
     pattern = r"ALTER\s+TABLE\s+([^\s]+)\s+(?:ALTER|CHANGE)\s+COLUMN\s+([^\s]+)\s+TYPE\s+([^\s;]+)"
     match = re.search(pattern, normalized_sql, re.IGNORECASE)
-
     if not match:
         return None
-
-    table = match.group(1)
-    column = match.group(2)
-    new_type = match.group(3)
+    table, column, new_type = match.group(1), match.group(2), match.group(3)
     temp_col = f"{column}_new"
-
-    print(f"Applying Delta migration rule for rollback column type change: {column}", flush=True)
-
     return [
         f"ALTER TABLE {table} ADD COLUMN {temp_col} {new_type}",
         f"UPDATE {table} SET {temp_col} = CAST({column} AS {new_type})",
@@ -222,93 +173,90 @@ def rewrite_alter_column_type(ddl_sql):
     ]
 
 # ----------------------------------------
-# Execute statements (UPDATED WITH LOGGING)
+#  EXECUTION WITH SCRIPT-WISE LOGGING
 # ----------------------------------------
 
-for i, stmt in enumerate(statements):
+for migration in migrations:
 
-    try:
-        stmt = sanitize_statement_for_non_uc(stmt)
-        ddl_upper = stmt.upper()
+    script_name = migration["script_name"]
 
-        if ddl_upper.startswith("USE CATALOG"):
-            print(f"Skipping catalog switch during rollback: {stmt}", flush=True)
-            continue
+    with open(migration["path"]) as f:
+        sql_text = f.read()
 
-        if ddl_upper.startswith("USE SCHEMA"):
-            print(f"Switching context: {stmt}", flush=True)
-            cursor.execute(stmt)
-            continue
+    statements = [
+        s.strip()
+        for s in sql_text.split(";")
+        if s.strip()
+    ]
 
-        table_name = extract_table_name(stmt)
-        schema = None
+    statements = list(reversed(statements))  # rollback order
 
-        if table_name:
-            schema, base_table_name = split_schema_and_table(table_name)
+    for i, stmt in enumerate(statements):
 
-            if not schema:
-                schema = find_table_schema(cursor, table_name)
+        try:
+            stmt = sanitize_statement_for_non_uc(stmt)
+            ddl_upper = stmt.upper()
 
-            if schema and "." not in table_name:
-                stmt = stmt.replace(table_name, f"{schema}.{base_table_name}", 1)
-                table_name = base_table_name
+            if ddl_upper.startswith("USE SCHEMA"):
+                cursor.execute(stmt)
+                continue
 
-            if needs_column_mapping(ddl_upper):
-                ensure_column_mapping_enabled(cursor, table_name, schema)
+            table_name = extract_table_name(stmt)
+            schema = None
 
-        if is_alter_column_type_statement(stmt):
-            rewritten = rewrite_alter_column_type(stmt)
+            if table_name:
+                schema, base_table_name = split_schema_and_table(table_name)
+                if not schema:
+                    schema = find_table_schema(cursor, table_name)
+                if schema and "." not in table_name:
+                    stmt = stmt.replace(table_name, f"{schema}.{base_table_name}", 1)
 
-            if not rewritten:
-                raise Exception(f"Failed to rewrite ALTER COLUMN TYPE rollback statement: {stmt}")
+                if needs_column_mapping(ddl_upper):
+                    ensure_column_mapping_enabled(cursor, table_name, schema)
 
-            for rewritten_stmt in rewritten:
-                print(f"Executing rewritten rollback step: {rewritten_stmt}", flush=True)
-                cursor.execute(rewritten_stmt)
+            if is_alter_column_type_statement(stmt):
+                rewritten = rewrite_alter_column_type(stmt)
+                for r in rewritten:
+                    cursor.execute(r)
+            else:
+                cursor.execute(stmt)
 
-        else:
-            print(f"Running: {stmt}")
-            cursor.execute(stmt)
+            # ✅ LOG PER ORIGINAL SCRIPT
+            cursor.execute(f"""
+                MERGE INTO hive_metastore.default.ddl_execution_log t
+                USING (SELECT '{script_name}' AS script_name) s
+                ON t.script_name = s.script_name
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        status='REVERT',
+                        operation='ROLLBACK',
+                        executed_at=current_timestamp()
+                WHEN NOT MATCHED THEN
+                    INSERT (script_name, status, operation, executed_at)
+                    VALUES ('{script_name}','REVERT','ROLLBACK',current_timestamp())
+            """)
 
-        #  SUCCESS LOG
-        cursor.execute(f"""
-            MERGE INTO hive_metastore.default.ddl_execution_log t
-            USING (SELECT '{script_name}' AS script_name) s
-            ON t.script_name = s.script_name
-            WHEN MATCHED THEN
-                UPDATE SET
-                    status='REVERT',
-                    operation='ROLLBACK',
-                    last_executed_cell={i+1},
-                    executed_at=current_timestamp()
-            WHEN NOT MATCHED THEN
-                INSERT (script_name, status, operation, last_executed_cell, executed_at)
-                VALUES ('{script_name}','REVERT','ROLLBACK',{i+1},current_timestamp())
-        """)
+        except Exception as e:
 
-    except Exception as e:
+            error_msg = str(e).replace("'", " ")
 
-        error_msg = str(e).replace("'", " ")
+            cursor.execute(f"""
+                MERGE INTO hive_metastore.default.ddl_execution_log t
+                USING (SELECT '{script_name}' AS script_name) s
+                ON t.script_name = s.script_name
+                WHEN MATCHED THEN
+                    UPDATE SET
+                        status='FAILED',
+                        operation='ROLLBACK',
+                        executed_at=current_timestamp()
+                WHEN NOT MATCHED THEN
+                    INSERT (script_name, status, operation, executed_at)
+                    VALUES ('{script_name}','FAILED','ROLLBACK',current_timestamp())
+            """)
 
-        #  FAILED LOG
-        cursor.execute(f"""
-            MERGE INTO hive_metastore.default.ddl_execution_log t
-            USING (SELECT '{script_name}' AS script_name) s
-            ON t.script_name = s.script_name
-            WHEN MATCHED THEN
-                UPDATE SET
-                    status='FAILED',
-                    operation='ROLLBACK',
-                    last_executed_cell={i},
-                    executed_at=current_timestamp()
-            WHEN NOT MATCHED THEN
-                INSERT (script_name, status, operation, last_executed_cell, executed_at)
-                VALUES ('{script_name}','FAILED','ROLLBACK',{i},current_timestamp())
-        """)
-
-        cursor.close()
-        conn.close()
-        raise e
+            cursor.close()
+            conn.close()
+            raise e
 
 print("Rollback executed successfully")
 
