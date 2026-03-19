@@ -237,6 +237,12 @@ stages:
           - checkout: self
             fetchDepth: 0
 
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              artifact: 'ddlartifact'
+              path: .
+            displayName: "Download DDL Artifact"
+
           - script: |
               python -m pip install databricks-sql-connector
             displayName: "Install dependencies"

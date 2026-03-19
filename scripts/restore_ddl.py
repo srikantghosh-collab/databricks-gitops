@@ -11,18 +11,24 @@ DATABRICKS_HOST = os.environ["DATABRICKS_HOST"]
 DATABRICKS_TOKEN = os.environ["DATABRICKS_TOKEN"]
 DATABRICKS_HTTP_PATH = os.environ["DATABRICKS_HTTP_PATH"]
 REVERT_COMMIT = os.environ["REVERT_COMMIT"]
+ROLLBACK_SCRIPT_NAME = f"rollback_{REVERT_COMMIT}"
 
 WORKSPACE_PATH = f"/rollback_scripts/rollback_{REVERT_COMMIT}.sql"
 
 # ----------------------------------------
-# ✅ NEW: Load ddl_output.json for mapping
+# Load ddl_output.json for required per-script rollback logging
 # ----------------------------------------
+
+if not os.path.exists("ddl_output.json"):
+    raise FileNotFoundError(
+        "ddl_output.json is required for per-script rollback logging but was not found"
+    )
 
 with open("ddl_output.json") as f:
     payload = json.load(f)
 
 migrations = payload.get("migrations", [])
-migrations = list(reversed(migrations))   # rollback order
+migrations = list(reversed(migrations))
 
 # ----------------------------------------
 # Fetch rollback SQL from workspace
