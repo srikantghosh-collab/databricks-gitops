@@ -22,7 +22,6 @@ with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
 migrations = payload.get("migrations", [])
-commit_id = payload.get("commit_id")
 
 if not migrations:
     print("No migration scripts found")
@@ -710,8 +709,6 @@ for item in forward_statement_entries:
           "catalog": catalog
         })
 
-rollback_statements = []
-
 forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
 
 print("Sending full DDL to AI...", flush=True)
@@ -733,29 +730,6 @@ rollback_sql = re.sub(r"```[\w]*", "", rollback_sql)
 rollback_sql = rollback_sql.replace("```", "").strip()
 
 print("AI rollback generated:\n", rollback_sql, flush=True)
-# forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
-
-# response = client.chat.completions.create(
-#     model=os.environ["AZURE_DEPLOYMENT_NAME"],
-#     temperature=0,
-#     timeout=60,
-#     messages=[
-#         {"role": "system", "content": SYSTEM_PROMPT},
-#         {"role": "user", "content": forward_sql_text}
-#     ]
-# )
-
-# rollback_sql = response.choices[0].message.content.strip()
-
-# # cleanup
-# result = re.sub(r"```[\w]*", "", rollback_sql)
-# result = result.replace("```", "").strip()
-
-# rollback_statements.append(result)
-
-# # final combine
-# rollback_sql = "\n".join(rollback_statements)
-
 
 # ----------------------------------------
 # Inject schema in rollback
@@ -838,53 +812,7 @@ commands = deduped_commands
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join(
     [cmd.rstrip(";") + ";" for cmd in commands]
 )
-# ----------------------------------------
-#  Generate per-script rollback mapping file
-# ----------------------------------------
 
-per_script_rollback = {}
-
-# Split rollback into commands
-all_commands = commands.copy()
-
-cmd_index = 0
-
-for migration in reversed(migrations):
-
-    script_name = migration["script_name"]
-
-    path = migration["path"]
-
-    if not os.path.exists(path):
-        continue
-
-    with open(path) as f:
-        sql_text = f.read()
-
-    forward_stmts = [
-        s.strip()
-        for s in sql_text.split(";")
-        if s.strip()
-    ]
-
-    # reverse for rollback
-    expected_count = len(forward_stmts)
-
-    script_cmds = []
-
-    # map commands sequentially
-    for _ in range(expected_count):
-        if cmd_index < len(all_commands):
-            script_cmds.append(all_commands[cmd_index])
-            cmd_index += 1
-
-    per_script_rollback[script_name] = script_cmds
-
-# save mapping file
-with open("rollback_mapping.json", "w") as f:
-    json.dump(per_script_rollback, f, indent=2)
-
-print("Per-script rollback mapping generated")
 # ----------------------------------------
 # Write rollback.sql
 # ----------------------------------------
