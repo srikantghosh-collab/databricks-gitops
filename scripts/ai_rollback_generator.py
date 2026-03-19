@@ -832,7 +832,7 @@ for cmd in commands:
     deduped_commands.append(cmd)
 
 commands = deduped_commands
-
+commands = expand_unsafe_type_change_rollbacks(commands)
 
 # Final formatting for Databricks notebook
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join(
