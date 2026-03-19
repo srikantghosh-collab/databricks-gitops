@@ -318,12 +318,13 @@ for migration in migrations:
                 ON t.script_name = s.script_name
                 WHEN MATCHED THEN
                     UPDATE SET
-                        status='RUNNING',
-                        last_executed_cell={i+1},
-                        executed_at=current_timestamp()
+                       status='RUNNING',
+                       operation='FORWARD',
+                       last_executed_cell={i+1},
+                       executed_at=current_timestamp()
                 WHEN NOT MATCHED THEN
-                    INSERT (script_name, status, last_executed_cell, executed_at)
-                    VALUES ('{script_name}','RUNNING',{i+1},current_timestamp())
+                   INSERT (script_name, status, operation, last_executed_cell, executed_at)
+                   VALUES ('{script_name}','RUNNING','FORWARD',{i+1},current_timestamp())
             """)
 
         except Exception as e:
@@ -333,13 +334,14 @@ for migration in migrations:
                 USING (SELECT '{script_name}' AS script_name) s
                 ON t.script_name = s.script_name
                 WHEN MATCHED THEN
-                    UPDATE SET
+                   UPDATE SET
                         status='FAILED',
+                        operation='FORWARD',
                         last_executed_cell={i},
                         executed_at=current_timestamp()
                 WHEN NOT MATCHED THEN
-                    INSERT (script_name, status, last_executed_cell, executed_at)
-                    VALUES ('{script_name}','FAILED',{i},current_timestamp())
+                    INSERT (script_name, status, operation, last_executed_cell, executed_at)
+                    VALUES ('{script_name}','FAILED','FORWARD',{i},current_timestamp())
             """)
 
             cursor.close()
@@ -354,11 +356,12 @@ for migration in migrations:
         WHEN MATCHED THEN
             UPDATE SET
                 status='SUCCESS',
+                operation='FORWARD',
                 last_executed_cell={len(statements)},
                 executed_at=current_timestamp()
         WHEN NOT MATCHED THEN
-            INSERT (script_name, status, last_executed_cell, executed_at)
-            VALUES ('{script_name}','SUCCESS',{len(statements)},current_timestamp())
+               INSERT (script_name, status, operation, last_executed_cell, executed_at)
+               VALUES ('{script_name}','SUCCESS','FORWARD',{len(statements)},current_timestamp())
     """)
 
 cursor.close()
