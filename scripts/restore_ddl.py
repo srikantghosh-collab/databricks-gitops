@@ -166,7 +166,7 @@ def ensure_column_mapping_enabled(cursor, table_name, schema):
         props = {row[0]: row[1] for row in cursor.fetchall()}
     except Exception as e:
         print(
-            f"Column mapping check skipped for {full_table}: {e}",
+            f"Column mapping check skipped for {full_table}",
             flush=True
         )
         return False
@@ -183,7 +183,7 @@ def ensure_column_mapping_enabled(cursor, table_name, schema):
         return True
     except Exception as e:
         print(
-            f"Column mapping enable skipped for {full_table}: {e}",
+            f"Column mapping enable skipped for {full_table}",
             flush=True
         )
         return False
