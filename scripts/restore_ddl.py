@@ -195,7 +195,11 @@ def rewrite_alter_column_type(ddl_sql):
 for stmt in statements:
     ddl_upper = stmt.upper()
 
-    if ddl_upper.startswith("USE SCHEMA") or ddl_upper.startswith("USE CATALOG"):
+    if ddl_upper.startswith("USE CATALOG"):
+        print(f"Skipping catalog switch during rollback: {stmt}", flush=True)
+        continue
+
+    if ddl_upper.startswith("USE SCHEMA"):
         print(f"Switching context: {stmt}", flush=True)
         cursor.execute(stmt)
         continue
