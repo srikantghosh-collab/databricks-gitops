@@ -2,7 +2,6 @@ import os
 import requests
 import base64
 import re
-import json
 from databricks import sql
 
 print("Starting rollback execution...")
@@ -14,21 +13,6 @@ REVERT_COMMIT = os.environ["REVERT_COMMIT"]
 ROLLBACK_SCRIPT_NAME = f"rollback_{REVERT_COMMIT}"
 
 WORKSPACE_PATH = f"/rollback_scripts/rollback_{REVERT_COMMIT}.sql"
-
-# ----------------------------------------
-# Load ddl_output.json for required per-script rollback logging
-# ----------------------------------------
-
-if not os.path.exists("ddl_output.json"):
-    raise FileNotFoundError(
-        "ddl_output.json is required for per-script rollback logging but was not found"
-    )
-
-with open("ddl_output.json") as f:
-    payload = json.load(f)
-
-migrations = payload.get("migrations", [])
-migrations = list(reversed(migrations))
 
 # ----------------------------------------
 # Fetch rollback SQL from workspace
@@ -186,29 +170,24 @@ def rewrite_alter_column_type(ddl_sql):
         f"ALTER TABLE {table} RENAME COLUMN {temp_col} TO {column}"
     ]
 
-def upsert_log_rows(script_names, status):
-    targets = script_names or [ROLLBACK_SCRIPT_NAME]
-
-    for script_name in targets:
-        cursor.execute(f"""
-            MERGE INTO hive_metastore.default.ddl_execution_log t
-            USING (SELECT '{script_name}' AS script_name) s
-            ON t.script_name = s.script_name
-            WHEN MATCHED THEN
-                UPDATE SET
-                    status='{status}',
-                    operation='ROLLBACK',
-                    executed_at=current_timestamp()
-            WHEN NOT MATCHED THEN
-                INSERT (script_name, status, operation, executed_at)
-                VALUES ('{script_name}','{status}','ROLLBACK',current_timestamp())
-        """)
+def upsert_log_row(status):
+    cursor.execute(f"""
+        MERGE INTO hive_metastore.default.ddl_execution_log t
+        USING (SELECT '{ROLLBACK_SCRIPT_NAME}' AS script_name) s
+        ON t.script_name = s.script_name
+        WHEN MATCHED THEN
+            UPDATE SET
+                status='{status}',
+                operation='ROLLBACK',
+                executed_at=current_timestamp()
+        WHEN NOT MATCHED THEN
+            INSERT (script_name, status, operation, executed_at)
+            VALUES ('{ROLLBACK_SCRIPT_NAME}','{status}','ROLLBACK',current_timestamp())
+    """)
 
 # ----------------------------------------
-# Execute actual rollback.sql and log against original script names
+# Execute actual rollback.sql and log as rollback_<commit_id>
 # ----------------------------------------
-
-script_names = [m["script_name"] for m in migrations]
 
 for stmt in rollback_statements:
     try:
@@ -244,12 +223,12 @@ for stmt in rollback_statements:
             cursor.execute(stmt)
 
     except Exception as e:
-        upsert_log_rows(script_names, "FAILED")
+        upsert_log_row("FAILED")
         cursor.close()
         conn.close()
         raise e
 
-upsert_log_rows(script_names, "REVERT")
+upsert_log_row("REVERT")
 
 print("Rollback executed successfully")
 
