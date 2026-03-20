@@ -66,6 +66,14 @@ print("Rollback file downloaded and decoded successfully")
 sql_text = sql_text.replace("-- Databricks notebook source", "")
 sql_text = sql_text.replace("-- COMMAND ----------", "")
 
+rollback_statements = [
+    s.strip()
+    for s in sql_text.split(";")
+    if s.strip()
+]
+
+print(f"Executing {len(rollback_statements)} rollback statements")
+
 # ----------------------------------------
 # Connect to Databricks
 # ----------------------------------------
@@ -178,91 +186,70 @@ def rewrite_alter_column_type(ddl_sql):
         f"ALTER TABLE {table} RENAME COLUMN {temp_col} TO {column}"
     ]
 
+def upsert_log_rows(script_names, status):
+    targets = script_names or [ROLLBACK_SCRIPT_NAME]
+
+    for script_name in targets:
+        cursor.execute(f"""
+            MERGE INTO hive_metastore.default.ddl_execution_log t
+            USING (SELECT '{script_name}' AS script_name) s
+            ON t.script_name = s.script_name
+            WHEN MATCHED THEN
+                UPDATE SET
+                    status='{status}',
+                    operation='ROLLBACK',
+                    executed_at=current_timestamp()
+            WHEN NOT MATCHED THEN
+                INSERT (script_name, status, operation, executed_at)
+                VALUES ('{script_name}','{status}','ROLLBACK',current_timestamp())
+        """)
+
 # ----------------------------------------
-#  EXECUTION WITH SCRIPT-WISE LOGGING
+# Execute actual rollback.sql and log against original script names
 # ----------------------------------------
 
-for migration in migrations:
+script_names = [m["script_name"] for m in migrations]
 
-    script_name = migration["script_name"]
+for stmt in rollback_statements:
+    try:
+        stmt = sanitize_statement_for_non_uc(stmt)
+        ddl_upper = stmt.upper()
 
-    with open(migration["path"]) as f:
-        sql_text = f.read()
+        if ddl_upper.startswith("USE CATALOG"):
+            print(f"Skipping catalog switch during rollback: {stmt}", flush=True)
+            continue
 
-    statements = [
-        s.strip()
-        for s in sql_text.split(";")
-        if s.strip()
-    ]
+        if ddl_upper.startswith("USE SCHEMA"):
+            cursor.execute(stmt)
+            continue
 
-    statements = list(reversed(statements))  # rollback order
+        table_name = extract_table_name(stmt)
+        schema = None
 
-    for i, stmt in enumerate(statements):
+        if table_name:
+            schema, base_table_name = split_schema_and_table(table_name)
+            if not schema:
+                schema = find_table_schema(cursor, table_name)
+            if schema and "." not in table_name:
+                stmt = stmt.replace(table_name, f"{schema}.{base_table_name}", 1)
 
-        try:
-            stmt = sanitize_statement_for_non_uc(stmt)
-            ddl_upper = stmt.upper()
+            if needs_column_mapping(ddl_upper):
+                ensure_column_mapping_enabled(cursor, table_name, schema)
 
-            if ddl_upper.startswith("USE SCHEMA"):
-                cursor.execute(stmt)
-                continue
+        if is_alter_column_type_statement(stmt):
+            rewritten = rewrite_alter_column_type(stmt)
+            for r in rewritten:
+                cursor.execute(r)
+        else:
+            cursor.execute(stmt)
 
-            table_name = extract_table_name(stmt)
-            schema = None
+    except Exception as e:
+        upsert_log_rows(script_names, "FAILED")
+        cursor.close()
+        conn.close()
+        raise e
 
-            if table_name:
-                schema, base_table_name = split_schema_and_table(table_name)
-                if not schema:
-                    schema = find_table_schema(cursor, table_name)
-                if schema and "." not in table_name:
-                    stmt = stmt.replace(table_name, f"{schema}.{base_table_name}", 1)
-
-                if needs_column_mapping(ddl_upper):
-                    ensure_column_mapping_enabled(cursor, table_name, schema)
-
-            if is_alter_column_type_statement(stmt):
-                rewritten = rewrite_alter_column_type(stmt)
-                for r in rewritten:
-                    cursor.execute(r)
-            else:
-                cursor.execute(stmt)
-
-            #  LOG PER ORIGINAL SCRIPT
-            cursor.execute(f"""
-                MERGE INTO hive_metastore.default.ddl_execution_log t
-                USING (SELECT '{script_name}' AS script_name) s
-                ON t.script_name = s.script_name
-                WHEN MATCHED THEN
-                    UPDATE SET
-                        status='REVERT',
-                        operation='ROLLBACK',
-                        executed_at=current_timestamp()
-                WHEN NOT MATCHED THEN
-                    INSERT (script_name, status, operation, executed_at)
-                    VALUES ('{script_name}','REVERT','ROLLBACK',current_timestamp())
-            """)
-
-        except Exception as e:
-
-            error_msg = str(e).replace("'", " ")
-
-            cursor.execute(f"""
-                MERGE INTO hive_metastore.default.ddl_execution_log t
-                USING (SELECT '{script_name}' AS script_name) s
-                ON t.script_name = s.script_name
-                WHEN MATCHED THEN
-                    UPDATE SET
-                        status='FAILED',
-                        operation='ROLLBACK',
-                        executed_at=current_timestamp()
-                WHEN NOT MATCHED THEN
-                    INSERT (script_name, status, operation, executed_at)
-                    VALUES ('{script_name}','FAILED','ROLLBACK',current_timestamp())
-            """)
-
-            cursor.close()
-            conn.close()
-            raise e
+upsert_log_rows(script_names, "REVERT")
 
 print("Rollback executed successfully")
 
