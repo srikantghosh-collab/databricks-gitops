@@ -76,11 +76,27 @@ stages:
              echo "DEBUG PIPELINE_IS_DROP = $(PIPELINE_IS_DROP)"
             displayName: "Debug AI Variables"
 
+  - stage: Approval
+    displayName: "Manual Approval for DROP"
+    dependsOn: AI
+    
+    condition: |
+      eq(stageDependencies.AI.ai.outputs['PromoteVars.PIPELINE_IS_DROP'], 'true')
+    jobs:
+      - job: approval
+        pool: server
+        steps:
+          - task: ManualValidation@0
+            inputs:
+              instructions: "DROP or irreversible DDL detected. Approve to continue."
+              timeoutInMinutes: 1440
+
   - stage: Execute
     displayName: "Execute DDL"
     dependsOn:
       - Detect
       - AI
+      - Approval
     condition: |
         ne(stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT'], 'yes')
     jobs:
