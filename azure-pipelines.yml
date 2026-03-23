@@ -125,27 +125,6 @@ stages:
              IS_DROP: $(PIPELINE_IS_DROP)
              PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT']]
 
-  - stage: Reconcile
-    displayName: "Schema Reconciliation"
-    dependsOn: Execute
-    condition: succeeded('Execute')
-    jobs:
-      - job: reconcile
-        pool:
-          name: selfhostedpool
-        steps:
-          - checkout: self
-
-          - script: |
-              python -m pip install databricks-sql-connector pyyaml
-              python -u scripts/reconcile_schema.py
-            displayName: "Run Reconciliation"
-            env:
-              AUTO_FIX: "false"
-              DATABRICKS_HOST: $(Databricks_Host)
-              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
-              DATABRICKS_TOKEN: $(Databricks_Token)
-
   - stage: RollbackGen
     displayName: "Generate AI Rollback SQL"
     dependsOn:
