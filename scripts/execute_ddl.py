@@ -261,6 +261,10 @@ for migration in migrations:
         print("Already executed → skipping")
         continue
 
+    if not os.path.exists(script_path):
+        print(f"Migration file not found → skipping: {script_path}", flush=True)
+        continue
+
     statements = read_sql_file(script_path)
 
     for i, ddl_sql in enumerate(statements):

@@ -25,11 +25,23 @@ try:
 except subprocess.CalledProcessError:
     changed_files = []
 
-scripts = sorted([
-    os.path.basename(f.strip())
-    for f in changed_files
-    if f.strip().startswith(f"{DDL_FOLDER}/") and f.strip().endswith(".sql")
-])
+scripts = []
+
+for file_path in changed_files:
+    file_path = file_path.strip()
+
+    if not file_path.startswith(f"{DDL_FOLDER}/") or not file_path.endswith(".sql"):
+        continue
+
+    # Ignore deleted or renamed-away files so downstream execution only
+    # receives migrations that exist in the current workspace checkout.
+    if not os.path.exists(file_path):
+        print(f"Skipping missing changed file: {file_path}")
+        continue
+
+    scripts.append(os.path.basename(file_path))
+
+scripts = sorted(set(scripts))
 
 if not scripts:
     print("No changed SQL migration files found in current commit")
