@@ -9,7 +9,7 @@ DDL_FOLDER = "ddl"
 OUTPUT_PATH = "ddl_output.json"
 
 # --------------------------------------------------
-# Detect migration SQL files
+# Detect migration SQL files changed in current commit
 # --------------------------------------------------
 
 if not os.path.exists(DDL_FOLDER):
@@ -17,13 +17,22 @@ if not os.path.exists(DDL_FOLDER):
     json.dump({"migrations": []}, open(OUTPUT_PATH, "w"))
     sys.exit(0)
 
+try:
+    changed_files = subprocess.check_output(
+        ["git", "show", "--pretty=", "--name-only", "HEAD", "--", DDL_FOLDER],
+        text=True
+    ).splitlines()
+except subprocess.CalledProcessError:
+    changed_files = []
+
 scripts = sorted([
-    f for f in os.listdir(DDL_FOLDER)
-    if f.endswith(".sql")
+    os.path.basename(f.strip())
+    for f in changed_files
+    if f.strip().startswith(f"{DDL_FOLDER}/") and f.strip().endswith(".sql")
 ])
 
 if not scripts:
-    print("No SQL migration files found")
+    print("No changed SQL migration files found in current commit")
     json.dump({"migrations": []}, open(OUTPUT_PATH, "w"))
     sys.exit(0)
 

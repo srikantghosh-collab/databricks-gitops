@@ -911,4 +911,7 @@ print("Per-script rollback mapping generated")
 with open("rollback.sql", "w") as f:
     f.write(formatted_sql)
 
+cursor.close()
+conn.close()
+
 print("Rollback SQL generated successfully ")
