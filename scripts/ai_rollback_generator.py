@@ -60,26 +60,22 @@ def get_current_schema(cursor):
 def get_already_executed_scripts(cursor):
     try:
         cursor.execute("""
-            SELECT script_name
+            SELECT script_name, status, last_executed_cell
             FROM hive_metastore.default.ddl_execution_log
-            WHERE status = 'SUCCESS'
+            WHERE operation = 'FORWARD'
         """)
-        return {row[0] for row in cursor.fetchall()}
+        return {
+            row[0]: {
+                "status": row[1],
+                "last_executed_cell": row[2] or 0
+            }
+            for row in cursor.fetchall()
+        }
     except Exception as e:
         print(f"Failed to fetch execution log: {e}")
-        return set()
+        return {}
 
-executed_scripts = get_already_executed_scripts(cursor)
-
-migrations = [
-    m for m in migrations
-    if m["script_name"] not in executed_scripts
-]
-
-if not migrations:
-    print("No new migrations to rollback")
-    open("rollback.sql", "w").close()
-    sys.exit(0)
+execution_state = get_already_executed_scripts(cursor)
 
 # ----------------------------------------
 # Azure OpenAI Client
@@ -581,6 +577,11 @@ def detect_table_schema(table_name):
 
     return None
 
+def strip_comments(sql_text):
+    sql_text = re.sub(r"/\*.*?\*/", "", sql_text, flags=re.DOTALL)
+    sql_text = re.sub(r"--.*", "", sql_text)
+    return sql_text.strip()
+
 # ----------------------------------------
 # Read migrations
 # ----------------------------------------
@@ -590,6 +591,7 @@ forward_statement_entries = []
 for migration in migrations:
 
     path = migration["path"]
+    script_name = migration["script_name"]
 
     if not os.path.exists(path):
         continue
@@ -598,10 +600,22 @@ for migration in migrations:
         sql_text = f.read()
 
     statements = [
-        s.strip()
+        strip_comments(s).strip()
         for s in sql_text.split(";")
-        if s.strip()
+        if strip_comments(s).strip()
     ]
+
+    state = execution_state.get(script_name)
+
+    if state:
+        executed_count = min(state["last_executed_cell"], len(statements))
+
+        if state["status"] in {"SUCCESS", "RUNNING", "FAILED"}:
+            statements = statements[:executed_count]
+            print(
+                f"Using {len(statements)} executed statement(s) from {script_name} "
+                f"(status={state['status']}, last_executed_cell={state['last_executed_cell']})"
+            )
 
     active_catalog = None
     active_schema = None
@@ -633,6 +647,11 @@ forward_statements = [item["statement"] for item in forward_statement_entries]
 deterministic_rollbacks = generate_deterministic_rollbacks(forward_statement_entries)
 
 print(f"Detected {len(forward_statements)} DDL statements")
+
+if not forward_statements:
+    print("No executed DDL statements found to rollback")
+    open("rollback.sql", "w").close()
+    sys.exit(0)
 
 
 # ----------------------------------------
