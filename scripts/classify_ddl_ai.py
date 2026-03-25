@@ -1,6 +1,7 @@
 import os
 import json
 from openai import AzureOpenAI
+from ddl_parser import split_sql_statements, extract_ddls
 
 print("Starting AI DDL Classification...")
 
@@ -19,7 +20,20 @@ if not os.path.exists(DDL_ARTIFACT):
 with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
-ddls = payload.get("ddls", [])
+migrations = payload.get("migrations", [])
+ddls = []
+
+for migration in migrations:
+    path = migration.get("path")
+
+    if not path or not os.path.exists(path):
+        continue
+
+    with open(path) as f:
+        sql_text = f.read()
+
+    statements = split_sql_statements(sql_text)
+    ddls.extend(extract_ddls(statements))
 
 if not ddls:
     print("No DDL statements found")
