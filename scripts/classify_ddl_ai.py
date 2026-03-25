@@ -42,8 +42,7 @@ Required JSON shape:
       "id": "ddl_1",
       "classification": "CREATE_TABLE|ALTER_TABLE|DROP_TABLE|TRUNCATE_TABLE|DDL_OTHER",
       "reversibility": "REVERSIBLE|IRREVERSIBLE",
-      "rollback_strategy": "DIRECT_REVERSE|AI_RECONSTRUCT",
-      "reason": "short explanation"
+      "rollback_strategy": "DIRECT_REVERSE|AI_RECONSTRUCT"
     }
   ]
 }
@@ -51,7 +50,6 @@ Required JSON shape:
 Rules:
 - Return exactly one object in "statements" for each input statement id.
 - Preserve the same ids from the input.
-- Keep reasons short and concrete.
 - If uncertain, prefer IRREVERSIBLE.
 """
 
@@ -231,7 +229,6 @@ def merge_ai_results(
                     ai_item.get("rollback_strategy", ""),
                     reversibility,
                 ),
-                "reason": (ai_item.get("reason") or "").strip(),
             }
         )
 
@@ -300,8 +297,6 @@ def main() -> None:
         print(f"  Classification: {item['classification']}")
         print(f"  Reversibility: {item['reversibility']}")
         print(f"  Rollback Strategy: {item['rollback_strategy']}")
-        if item["reason"]:
-            print(f"  Reason: {item['reason']}")
 
     (
         final_classification,
