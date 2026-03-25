@@ -71,7 +71,7 @@ conn = sql.connect(
 cursor = conn.cursor()
 
 # ----------------------------------------
-# Helpers (UNCHANGED)
+# Helpers 
 # ----------------------------------------
 
 def extract_table_name(ddl_sql):

@@ -746,32 +746,6 @@ rollback_sql = re.sub(r"```[\w]*", "", rollback_sql)
 rollback_sql = rollback_sql.replace("```", "").strip()
 
 print("AI rollback generated:\n", rollback_sql, flush=True)
-# forward_sql_text = "\n".join([m["statement"] for m in metadata_payload])
-
-# response = client.chat.completions.create(
-#     model=os.environ["AZURE_DEPLOYMENT_NAME"],
-#     temperature=0,
-#     timeout=60,
-#     messages=[
-#         {"role": "system", "content": SYSTEM_PROMPT},
-#         {"role": "user", "content": forward_sql_text}
-#     ]
-# )
-
-# rollback_sql = response.choices[0].message.content.strip()
-
-# # cleanup
-# result = re.sub(r"```[\w]*", "", rollback_sql)
-# result = result.replace("```", "").strip()
-
-# rollback_statements.append(result)
-
-# # final combine
-# rollback_sql = "\n".join(rollback_statements)
-
-
-# Inject schema in rollback
-
 
 for item in metadata_payload:
 
