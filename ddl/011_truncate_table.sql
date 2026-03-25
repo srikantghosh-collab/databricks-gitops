@@ -1,1 +1,0 @@
-TRUNCATE TABLE employee_HR;
