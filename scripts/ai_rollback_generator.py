@@ -43,9 +43,9 @@ conn = sql.connect(
 
 cursor = conn.cursor()
 
-# ----------------------------------------
-# NEW: CURRENT SCHEMA FALLBACK
-# ----------------------------------------
+
+# CURRENT SCHEMA FALLBACK
+
 
 def get_current_schema(cursor):
     try:
@@ -77,9 +77,8 @@ def get_already_executed_scripts(cursor):
 
 execution_state = get_already_executed_scripts(cursor)
 
-# ----------------------------------------
 # Azure OpenAI Client
-# ----------------------------------------
+
 
 client = AzureOpenAI(
     api_key=os.environ["AZURE_OPENAI_KEY"],
@@ -87,9 +86,8 @@ client = AzureOpenAI(
     azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
 )
 
-# ----------------------------------------
-# SYSTEM PROMPT (UNCHANGED)
-# ----------------------------------------
+
+# SYSTEM PROMPT 
 
 SYSTEM_PROMPT = '''You are an expert Databricks Delta Lake database reliability engineer.
 
@@ -354,9 +352,9 @@ Restore previous comment if available.
 Return ONLY the rollback SQL statements in STRICT reverse order.
 Use metadata and DDL inference wherever required.'''
 
-# ----------------------------------------
+
 # Extract table name
-# ----------------------------------------
+
 
 def extract_table_name(stmt):
 
@@ -552,9 +550,8 @@ def qualify_command_with_schema(command, table_schema_map):
     return qualified
 
 
-# ----------------------------------------
+
 # Detect schema
-# ----------------------------------------
 
 def detect_table_schema(table_name):
 
@@ -582,9 +579,7 @@ def strip_comments(sql_text):
     sql_text = re.sub(r"--.*", "", sql_text)
     return sql_text.strip()
 
-# ----------------------------------------
 # Read migrations
-# ----------------------------------------
 
 forward_statement_entries = []
 
@@ -654,9 +649,9 @@ if not forward_statements:
     sys.exit(0)
 
 
-# ----------------------------------------
-# Detect schema from SQL (IMPORTANT FIX)
-# ----------------------------------------
+
+# Detect schema from SQL 
+
 
 def extract_schema_from_sql(statements):
     for stmt in statements:
@@ -685,9 +680,8 @@ if detected_schema:
     cursor.execute(f"USE SCHEMA {detected_schema}")
 
 
-# ----------------------------------------
+
 # Build metadata payload
-# ----------------------------------------
 
 metadata_payload = []
 
@@ -776,9 +770,8 @@ print("AI rollback generated:\n", rollback_sql, flush=True)
 # rollback_sql = "\n".join(rollback_statements)
 
 
-# ----------------------------------------
 # Inject schema in rollback
-# ----------------------------------------
+
 
 for item in metadata_payload:
 
@@ -800,7 +793,7 @@ for item in metadata_payload:
         table_schema_map[table] = schema
 
 # ----------------------------------------
-# Convert to notebook format (FIXED)
+# Convert to notebook format 
 # ----------------------------------------
 
 # Normalize
@@ -857,9 +850,9 @@ commands = deduped_commands
 formatted_sql = "\n\n-- COMMAND ----------\n\n".join(
     [cmd.rstrip(";") + ";" for cmd in commands]
 )
-# ----------------------------------------
+
 #  Generate per-script rollback mapping file
-# ----------------------------------------
+
 
 per_script_rollback = {}
 
