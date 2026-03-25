@@ -1,143 +1,80 @@
-import os
 import json
-from openai import AzureOpenAI
+import os
+import sys
+
 from ddl_parser import split_sql_statements, extract_ddls
 
 print("Starting AI DDL Classification...")
 
 DDL_ARTIFACT = "ddl_output.json"
 
-# --------------------------------
-# Load DDL artifact
-# --------------------------------
+
+def emit_outputs(is_drop: bool, rollback_type: str) -> None:
+    print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
+    print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
+
 
 if not os.path.exists(DDL_ARTIFACT):
     print("No ddl_output.json found — skipping classification")
-    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
-    print("##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]NONE")
-    exit(0)
+    emit_outputs(False, "NONE")
+    sys.exit(0)
 
 with open(DDL_ARTIFACT) as f:
     payload = json.load(f)
 
 migrations = payload.get("migrations", [])
-ddls = []
+
+if not migrations:
+    print("No migration scripts found in ddl_output.json")
+    emit_outputs(False, "NONE")
+    sys.exit(0)
+
+all_ddls = []
 
 for migration in migrations:
+    script_name = migration.get("script_name", "<unknown>")
     path = migration.get("path")
 
     if not path or not os.path.exists(path):
+        print(f"Skipping missing migration file: {script_name}")
         continue
 
     with open(path) as f:
         sql_text = f.read()
 
     statements = split_sql_statements(sql_text)
-    ddls.extend(extract_ddls(statements))
+    ddls = extract_ddls(statements)
 
-if not ddls:
+    print(f"{script_name}: found {len(ddls)} DDL command(s)")
+    for ddl in ddls:
+        print(f"  - {ddl['statement']}")
+
+    all_ddls.extend(ddls)
+
+if not all_ddls:
     print("No DDL statements found")
-    print("##vso[task.setvariable variable=IS_DROP;isOutput=true]false")
-    print("##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]NONE")
-    exit(0)
+    emit_outputs(False, "NONE")
+    sys.exit(0)
 
-# --------------------------------
-# Prepare AI input
-# --------------------------------
+statement_texts = [ddl["statement"].strip().upper() for ddl in all_ddls]
 
-ddl_statements = "\n".join(d["statement"] for d in ddls)
-
-system_prompt = """
-You are a Databricks Delta Lake DDL expert.
-
-Classify the given DDL statements.
-
-Return ONLY ONE of the following classifications:
-
-CREATE_TABLE
-ALTER_TABLE
-DROP_TABLE
-
-Rules:
-
-CREATE TABLE → CREATE_TABLE
-
-ALTER TABLE → ALTER_TABLE
-
-DROP TABLE → DROP_TABLE
-
-Return ONLY the classification name.
-No explanation.
-"""
-
-user_prompt = f"""
-Classify the following DDL statements:
-
-{ddl_statements}
-"""
-
-# --------------------------------
-# Call Azure OpenAI
-# --------------------------------
-
-client = AzureOpenAI(
-    api_key=os.environ["AZURE_OPENAI_KEY"],
-    azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-    api_version="2024-02-15-preview"
-)
-
-response = client.chat.completions.create(
-    model=os.environ["AZURE_DEPLOYMENT_NAME"],
-    messages=[
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt}
-    ],
-    temperature=0
-)
-
-ai_class = response.choices[0].message.content.strip().upper()
-
-print("AI classification:", ai_class)
-
-VALID_CLASSES = {
-    "CREATE_TABLE",
-    "ALTER_TABLE",
-    "DROP_TABLE"
-}
-
-if ai_class not in VALID_CLASSES:
-    print("Invalid AI classification — defaulting to ALTER_TABLE")
-    ai_class = "ALTER_TABLE"
-
-# --------------------------------
-# Derive pipeline behavior
-# --------------------------------
-
-if ai_class == "DROP_TABLE":
+if any(stmt.startswith("DROP TABLE") for stmt in statement_texts):
+    final_classification = "DROP_TABLE"
     is_drop = True
-    rollback_type = "AI_RECONSTRUCT"
-
-elif ai_class in ("CREATE_TABLE", "ALTER_TABLE"):
+elif any(stmt.startswith("ALTER TABLE") for stmt in statement_texts):
+    final_classification = "ALTER_TABLE"
     is_drop = False
-    rollback_type = "AI_RECONSTRUCT"
-
+elif any(stmt.startswith("CREATE TABLE") for stmt in statement_texts):
+    final_classification = "CREATE_TABLE"
+    is_drop = False
 else:
+    final_classification = "NONE"
     is_drop = False
-    rollback_type = "NONE"
 
-# --------------------------------
-# Final logs
-# --------------------------------
+rollback_type = "AI_RECONSTRUCT" if final_classification != "NONE" else "NONE"
 
-print("Final Classification:", ai_class)
+print("Final Classification:", final_classification)
 print("Rollback Type:", rollback_type)
 print("Is Drop:", is_drop)
 
-# --------------------------------
-# Azure DevOps output variables
-# --------------------------------
-
-is_drop_str = str(is_drop).lower()
-
-print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{is_drop_str}")
-print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
+emit_outputs(is_drop, rollback_type)
