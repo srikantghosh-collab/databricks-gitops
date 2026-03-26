@@ -19,7 +19,7 @@ if not os.path.exists(DDL_FOLDER):
 
 try:
     changed_files = subprocess.check_output(
-        ["git", "show", "--pretty=", "--name-only", "HEAD", "--", DDL_FOLDER],
+        ["git", "show", "--pretty=", "--name-status", "HEAD", "--", DDL_FOLDER],
         text=True
     ).splitlines()
 except subprocess.CalledProcessError:
@@ -27,16 +27,30 @@ except subprocess.CalledProcessError:
 
 scripts = []
 
-for file_path in changed_files:
-    file_path = file_path.strip()
+for raw_line in changed_files:
+    raw_line = raw_line.strip()
+    if not raw_line:
+        continue
+
+    parts = raw_line.split("\t")
+    status = parts[0]
+    file_path = None
+
+    # Renames appear like: R076 <old_path> <new_path>
+    if status.startswith("R") and len(parts) >= 3:
+        file_path = parts[2]
+    elif status.startswith("D"):
+        # Deleted files should not be executed in the current checkout.
+        continue
+    elif len(parts) >= 2:
+        file_path = parts[1]
+    else:
+        continue
 
     if not file_path.startswith(f"{DDL_FOLDER}/") or not file_path.endswith(".sql"):
         continue
 
-    # Ignore deleted or renamed-away files so downstream execution only
-    # receives migrations that exist in the current workspace checkout.
     if not os.path.exists(file_path):
-        print(f"Skipping missing changed file: {file_path}")
         continue
 
     scripts.append(os.path.basename(file_path))
@@ -56,9 +70,8 @@ for script in scripts:
         "path": f"{DDL_FOLDER}/{script}"
     })
 
-# --------------------------------------------------
 # Get commit id
-# --------------------------------------------------
+
 
 commit_id = subprocess.check_output(
     ["git", "rev-parse", "HEAD"],
