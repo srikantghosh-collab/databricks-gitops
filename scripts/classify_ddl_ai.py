@@ -54,15 +54,14 @@ Rules:
 """
 
 
-def emit_outputs(is_drop: bool, rollback_type: str) -> None:
+def emit_outputs(is_drop: bool) -> None:
     print(f"##vso[task.setvariable variable=IS_DROP;isOutput=true]{str(is_drop).lower()}")
-    print(f"##vso[task.setvariable variable=ROLLBACK_TYPE;isOutput=true]{rollback_type}")
 
 
 def load_migrations() -> list[dict[str, Any]]:
     if not os.path.exists(DDL_ARTIFACT):
         print("No ddl_output.json found — skipping classification")
-        emit_outputs(False, "NONE")
+        emit_outputs(False)
         sys.exit(0)
 
     with open(DDL_ARTIFACT) as f:
@@ -71,7 +70,7 @@ def load_migrations() -> list[dict[str, Any]]:
     migrations = payload.get("migrations", [])
     if not migrations:
         print("No migration scripts found in ddl_output.json")
-        emit_outputs(False, "NONE")
+        emit_outputs(False)
         sys.exit(0)
 
     return migrations
@@ -110,7 +109,7 @@ def collect_ddls(migrations: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     if not all_ddls:
         print("No DDL statements found")
-        emit_outputs(False, "NONE")
+        emit_outputs(False)
         sys.exit(0)
 
     return all_ddls
@@ -235,7 +234,7 @@ def merge_ai_results(
     return classified_ddls
 
 
-def summarize_results(classified_ddls: list[dict[str, Any]]) -> tuple[str, str, str, bool]:
+def summarize_results(classified_ddls: list[dict[str, Any]]) -> tuple[str, str, bool]:
     classification_names = [item["classification"] for item in classified_ddls]
     reversibility_names = [item["reversibility"] for item in classified_ddls]
 
@@ -251,23 +250,19 @@ def summarize_results(classified_ddls: list[dict[str, Any]]) -> tuple[str, str, 
 
     if reversibility_names and all(name == "REVERSIBLE" for name in reversibility_names):
         reversibility_summary = "REVERSIBLE"
-        rollback_type = "DIRECT_REVERSE"
     elif any(name == "IRREVERSIBLE" for name in reversibility_names):
         reversibility_summary = "IRREVERSIBLE"
-        rollback_type = "AI_RECONSTRUCT"
     else:
         reversibility_summary = "UNKNOWN"
-        rollback_type = "NONE"
 
     is_drop = any(item["classification"] == "DROP_TABLE" for item in classified_ddls)
-    return final_classification, reversibility_summary, rollback_type, is_drop
+    return final_classification, reversibility_summary, is_drop
 
 
 def persist_classification_artifact(
     classified_ddls: list[dict[str, Any]],
     final_classification: str,
     reversibility_summary: str,
-    rollback_type: str,
     is_drop: bool,
 ) -> None:
     with open(CLASSIFICATION_ARTIFACT, "w") as f:
@@ -275,7 +270,6 @@ def persist_classification_artifact(
             {
                 "final_classification": final_classification,
                 "reversibility_summary": reversibility_summary,
-                "rollback_type": rollback_type,
                 "is_drop": is_drop,
                 "statements": classified_ddls,
             },
@@ -301,7 +295,6 @@ def main() -> None:
     (
         final_classification,
         reversibility_summary,
-        rollback_type,
         is_drop,
     ) = summarize_results(classified_ddls)
 
@@ -309,16 +302,14 @@ def main() -> None:
         classified_ddls,
         final_classification,
         reversibility_summary,
-        rollback_type,
         is_drop,
     )
 
     print("Final Classification:", final_classification)
     print("Reversibility Summary:", reversibility_summary)
-    print("Rollback Type:", rollback_type)
     print("Is Drop:", is_drop)
 
-    emit_outputs(is_drop, rollback_type)
+    emit_outputs(is_drop)
 
 
 if __name__ == "__main__":

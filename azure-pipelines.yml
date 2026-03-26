@@ -54,7 +54,7 @@ stages:
             displayName: "Install Azure OpenAI SDK"
 
           - script: |
-              python scripts/classify_ddl_ai.py
+             python scripts/classify_ddl_ai.py
             name: SetOutput
             displayName: "Run AI Classification"
             env:
@@ -64,12 +64,10 @@ stages:
 
           - script: |
              echo "##vso[task.setvariable variable=PIPELINE_IS_DROP;isOutput=true]$IS_DROP"
-             echo "##vso[task.setvariable variable=PIPELINE_ROLLBACK_TYPE;isOutput=true]$ROLLBACK_TYPE"
             name: PromoteVars
             displayName: "Promote AI Variables"
             env:
              IS_DROP: $(SetOutput.IS_DROP)
-             ROLLBACK_TYPE: $(SetOutput.ROLLBACK_TYPE)
 
           - script: |
              echo "DEBUG IS_DROP = $(SetOutput.IS_DROP)"
@@ -121,7 +119,6 @@ stages:
              DATABRICKS_HOST: $(Databricks_Host)
              DATABRICKS_HTTP_PATH: $(Databricks_HTTP_Path)
              DATABRICKS_TOKEN: $(DATABRICKS_TOKEN)
-             ROLLBACK_TYPE: $(PIPELINE_ROLLBACK_TYPE)
              IS_DROP: $(PIPELINE_IS_DROP)
              PIPELINE_IS_REVERT: $[stageDependencies.Detect.detect.outputs['detectrevert.PIPELINE_IS_REVERT']]
 
